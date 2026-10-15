@@ -1,26 +1,25 @@
-# prod
+# ---- build output ----------------------------------------------------------
 dist/
+ops-console/dist/
 
-# dev
+# ---- dependencies ---------------------------------------------------------
+node_modules/
 .yarn/
 !.yarn/releases
-.vscode/*
-!.vscode/launch.json
-!.vscode/*.code-snippets
-.idea/workspace.xml
-.idea/usage.statistics.xml
-.idea/shelf
 
-# deps
-node_modules/
-.wrangler
-
-# env
+# ---- secrets: never commit --------------------------------------------------
 .env
-.env.production
+.env.*
+!.env.example
 .dev.vars
+.netlify/
+.nf/
+.netlify-cli/
 
-# logs
+# ---- cloudflare local state -----------------------------------------------
+.wrangler/
+
+# ---- logs -----------------------------------------------------------------
 logs/
 *.log
 npm-debug.log*
@@ -29,5 +28,25 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# misc
+# ---- editors / os ---------------------------------------------------------
+.vscode/*
+!.vscode/launch.json
+!.vscode/*.code-snippets
+.idea/workspace.xml
+.idea/usage.statistics.xml
+.idea/shelf
 .DS_Store
+
+# ---- misc -----------------------------------------------------------------
+*.pid
+pids/
+.pm2/
+*.backup
+*.bak
+*.tar.gz
+*.zip
+
+# ---- generated: rebuild with `node tools/build-pages.mjs` -----------------
+# The eight site/*.html pages are generated from tools/build-pages.mjs, but we
+# DO commit them: Netlify Forms must be able to crawl them at deploy time, and
+# the repo should be readable without running a build first.

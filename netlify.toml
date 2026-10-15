@@ -1,0 +1,53 @@
+[build]
+  publish = "site"
+  command = "node tools/build-pages.mjs"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Netlify Forms: submissions land in the Netlify dashboard under Forms.
+# No notification emails are configured here on purpose — the partner team
+# wires those up in the UI once the account is verified.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(self), camera=(), microphone=()"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[redirects]]
+  from = "/signin"
+  to = "/customer-signin.html"
+  status = 301
+
+[[redirects]]
+  from = "/signup"
+  to = "/customer-signup.html"
+  status = 301
+
+[[redirects]]
+  from = "/partner"
+  to = "/partner-signup.html"
+  status = 301
+
+[[redirects]]
+  from = "/drive"
+  to = "/courier-signup.html"
+  status = 301
+
+[[redirects]]
+  from = "/console"
+  to = "/dispatch-signin.html"
+  status = 301
+
+[[redirects]]
+  from = "/deliver"
+  to = "/courier-signup.html"
+  status = 301
