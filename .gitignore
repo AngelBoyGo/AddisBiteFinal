@@ -1,6 +1,9 @@
 # ---- build output ----------------------------------------------------------
-dist/
+# dist/ IS committed on purpose: the Genspark hosted pipeline publishes the
+# tracked tree, and wrangler.jsonc serves ./dist as the site bundle. Rebuild it
+# with ./tools/build-dist.sh before committing.
 ops-console/dist/
+ops-admin/dist/
 
 # ---- dependencies ---------------------------------------------------------
 node_modules/

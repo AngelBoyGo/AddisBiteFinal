@@ -2,7 +2,7 @@
 # ============================================================================
 # Build the deployable bundle into ./dist
 # ----------------------------------------------------------------------------
-# One origin, four surfaces:
+# wrangler.jsonc serves ./dist as static assets on one origin:
 #
 #   /                        landing + auth / partner / attribution pages
 #   /console/                Operations Console   (dispatch)   — Vite build
@@ -10,9 +10,9 @@
 #   /app/customer.html       Customer app                      — prototype
 #   /app/courier.html        Courier app                       — prototype
 #
-# The dashboard URLs are patched IN THE BUNDLE ONLY. The source
-# site/assets/js/links.config.js keeps its empty "launching soon" values, so a
-# later re-point at real subdomains is a one-file edit.
+# Dashboard URLs are patched INTO THE BUNDLE ONLY by tools/patch-links.mjs.
+# site/assets/js/links.config.js keeps its empty "launching soon" values, so
+# re-pointing at real subdomains later is a one-file edit.
 # ============================================================================
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -39,27 +39,8 @@ cp apps/*.jsx apps/*.css apps/*.js dist/app/
 cp apps/customer.html dist/app/customer.html
 cp apps/courier.html  dist/app/courier.html
 
-# Point every dashboard link at its real path — bundle copy only.
-python3 - <<'PY'
-import re, pathlib
-p = pathlib.Path('dist/assets/js/links.config.js')
-s = p.read_text()
-targets = {
-    'console':  '/console/',
-    'admin':    '/admin/',
-    'customer': '/app/customer.html',
-    'courier':  '/app/courier.html',
-}
-for key, val in targets.items():
-    s2 = re.sub(rf"^(\s*{key}:\s*)''(,)", rf"\g<1>'{val}'\g<2>", s, flags=re.M)
-    assert s2 != s, f'link patch did not apply for {key!r}'
-    s = s2
-p.write_text(s)
-left = [k for k, v in targets.items() if f"{k}:" in s and f"'{v}'" not in s]
-assert not left, f'still unpatched: {left}'
-print('   links.config.js → console=/console/  admin=/admin/'
-      '  customer=/app/customer.html  courier=/app/courier.html')
-PY
+echo "▸ pointing dashboard links at their real paths"
+node tools/patch-links.mjs dist/assets/js/links.config.js
 
 echo
 echo "dist/ ready — $(du -sh dist | cut -f1)"
