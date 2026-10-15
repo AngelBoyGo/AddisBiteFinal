@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Addis Bites · Operations Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=mv8f8lud">
+<link rel="stylesheet" href="brand.css?v=mv8f8lud">
+<style>@keyframes spin{to{transform:rotate(360deg)}} body{font-family:'Inter','Noto Sans Ethiopic',sans-serif}</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="data.js?v=mv8f8lud"></script>
+<script src="ab-bus.js?v=mv8f8lud"></script>
+<script src="ab-api.js?v=mv8f8lud"></script>
+<script src="ab-seed.js?v=mv8f8lud"></script>
+<script src="ab-bridge.js?v=mv8f8lud"></script>
+<script src="ab-project-console.js?v=mv8f8lud"></script>
+<script>window.ABBus.init('console');
+// Boot the shared store here too. Previously only Admin.html called this, so a standalone Console
+// with empty storage would run against an unseeded store and render empty screens.
+if (window.ABApi && window.ABApi.boot) window.ABApi.boot();
+window.AB_IMAGES_PRESENT = true;</script>
+<script type="text/babel" src="tweaks_panel.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="lib.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="store.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="shell.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="board-kpi.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="board.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="drawer.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="queues.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="network.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="admin-payments.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="people.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="finance.jsx?v=mv8f8lud"></script>
+<script type="text/babel" src="admin-lib.jsx?v=mv8f8lud"></script>
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "dark": false,
+  "connection": "live",
+  "pageState": "normal",
+  "role": "Dispatcher",
+  "audioBlocked": false,
+  "liveSim": true
+}/*EDITMODE-END*/;
+
+// Courier applications and restaurants now live on the Admin dashboard. Dispatch is pointed there rather
+// than shown a queue it cannot act on — the API refuses these actions for a dispatcher anyway.
+function AdminPointer({ what='drivers' }){
+  const app = useApp();
+  const isDrivers = what === 'drivers';
+  return <div className="page" data-screen-label="Moved to Admin">
+    <div className="ph"><div><h1>{isDrivers ? 'Driver approvals' : 'Restaurants'}</h1>
+      <div className="sub">Moved to the Admin dashboard</div></div></div>
+    <div className="card card-b" style={{maxWidth:620}}>
+      <div className="row" style={{gap:12,alignItems:'flex-start'}}>
+        <div style={{width:44,height:44,borderRadius:12,background:'var(--surface-2)',display:'grid',placeItems:'center',flexShrink:0}}><Icon n="external" s={20}/></div>
+        <div>
+          <b>{isDrivers ? 'Approving drivers is an admin function.' : 'Managing restaurants is an admin function.'}</b>
+          <div className="muted" style={{fontSize:13.5,marginTop:6,lineHeight:1.6}}>
+            {isDrivers
+              ? 'Dispatch can see which couriers are online and what they are carrying, but cannot review applications or documents. That separation is enforced in the API: a dispatcher attempting to approve a driver is refused and the attempt is written to the audit log.'
+              : 'Adding, pausing and pricing restaurants happens on the Admin dashboard, including the special prices for group deals. Dispatch sees the venues on the board, not the settings behind them.'}
+          </div>
+          <div className="row" style={{gap:8,marginTop:14}}>
+            <a className="btn p" href="Addis Bites Admin.html" target="_blank" rel="noopener"><Icon n="external" s={15}/>Open the Admin dashboard</a>
+            <button className="btn" onClick={()=>app.go('board')}>Back to the board</button>
+          </div>
+          <div className="faint" style={{fontSize:12.5,marginTop:12}}>Your role: {app.role}. Seeing this page means your account is a dispatcher or finance role.</div>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+function App(){
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const app = useAppStore(t, setTweak);
+  // Staff sign-in: dispatchers and admins use a username + password, never a phone OTP.
+  // The bypass is labelled so a reviewer is never confused about which door they came through.
+  const [signedIn, setSignedIn] = useState(() => sessionStorage.getItem('ab_console_signedin') === '1');
+  const [bypass, setBypass] = useState(() => sessionStorage.getItem('ab_console_bypass') === '1');
+  if (!signedIn && !bypass) return <ConsoleSignIn onDone={(asWho) => { setSignedIn(true); if (asWho==='demo'){ setBypass(true); sessionStorage.setItem('ab_console_bypass','1'); } sessionStorage.setItem('ab_console_signedin','1'); }}/>;
+  const [palette, setPalette] = useState(false);
+  const [notif, setNotif] = useState(false);
+  const [keys, setKeys] = useState(false);
+  useEffect(()=>{ document.documentElement.setAttribute('data-theme', t.dark?'dark':'light'); },[t.dark]);
+
+  // global keys
+  const gRef = useRef(0);
+  useEffect(()=>{
+    const h = e => {
+      if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); setPalette(p=>!p); return; }
+      if (e.target.closest('input,textarea,select,[contenteditable]')) return;
+      if (e.key==='/'){ e.preventDefault(); setPalette(true); return; }
+      if (e.key==='?'){ e.preventDefault(); setKeys(true); return; }
+      if (e.key.toLowerCase()==='g'){ gRef.current = Date.now(); return; }
+      if (Date.now()-gRef.current < 900){ const m = {b:'board',a:'action',p:'payments',m:'messages',c:'couriers',r:'restaurants',f:'money'}[e.key.toLowerCase()]; if (m){ e.preventDefault(); e.stopImmediatePropagation(); gRef.current=0; app.go(m); } }
+    };
+    document.addEventListener('keydown', h, true); return ()=>document.removeEventListener('keydown', h, true);
+  },[]);
+  // first interaction unlocks audio
+  useEffect(()=>{ const u = ()=>{ if (!t.audioBlocked) app.ensureAudio(); }; document.addEventListener('pointerdown', u, {once:true}); return ()=>document.removeEventListener('pointerdown', u); },[t.audioBlocked]);
+  // scroll to top on page change
+  useEffect(()=>{ const c = document.querySelector('.content'); if (c) c.scrollTop = 0; },[app.route.page, app.route.id]);
+
+  const P = app.route.page;
+  let page;
+  if (P==='order') page = <div style={{height:'100%'}}><div className="page full" style={{paddingBottom:0}}><div className="crumbs"><a onClick={()=>app.go('board')}>Dispatch Board</a><Icon n="chevR" s={12}/>Order {app.route.id}</div></div><div style={{height:'calc(100% - 40px)'}}><OrderDetail code={app.route.id} asPage onClose={()=>app.go('board')}/></div></div>;
+  else page = ({board:<BoardPage/>, action:<ActionPage/>, payments:<PaymentsPage/>, payrestaurant:<PaymentQueue/>, messages:<MessagesPage/>, couriers:<CouriersPage/>, applications:<AdminPointer/>, adminlink:<AdminPointer/>, customers:<CustomersPage/>, restaurants:<AdminPointer what="restaurants"/>, money:<MoneyPage/>, reports:<ReportsPage/>, audit:<AuditPage/>, settings:<SettingsPage/>})[P] || <BoardPage/>;
+
+  return <Ctx.Provider value={app}>
+    <div className={cx('app', app.collapsed&&'collapsed')}>
+      <Sidebar/>
+      <main className="main">
+        <TopBar onSearch={()=>setPalette(true)} onNotif={()=>setNotif(n=>!n)} notifOpen={notif}/>
+        <Banners/>
+        <AlertStrip/>
+        <div className="content" key={P + (app.route.id||'')}>{page}</div>
+      </main>
+      <BottomTabs/>
+    </div>
+    {app.drawer && P!=='order' && <OrderDetail code={app.drawer} onClose={()=>app.setDrawer(null)}/>}
+    {palette && <Palette onClose={()=>setPalette(false)}/>}
+    {notif && <Notifications onClose={()=>setNotif(false)}/>}
+    {keys && <ShortcutSheet onClose={()=>setKeys(false)}/>}
+    <Modals/>
+    <Confirm/>
+    <Toasts/>
+    <TipLayer/>
+    <TweaksPanel>
+      <TweakSection label="Appearance"><TweakToggle label="Dark mode" value={t.dark} onChange={v=>setTweak('dark',v)}/></TweakSection>
+      <TweakSection label="Connection">
+        <TweakRadio label="Status" value={t.connection} options={['live','reconnecting','offline']} onChange={v=>setTweak('connection',v)}/>
+        <TweakToggle label="Simulate incoming orders (45s)" value={t.liveSim} onChange={v=>setTweak('liveSim',v)}/>
+        <TweakToggle label="Browser blocked audio" value={t.audioBlocked} onChange={v=>setTweak('audioBlocked',v)}/>
+      </TweakSection>
+      <TweakSection label="Page state">
+        <TweakSelect label="Show every page as" value={t.pageState} options={['normal','loading','empty','error','denied']} onChange={v=>setTweak('pageState',v)}/>
+      </TweakSection>
+      <TweakSection label="Operator role">
+        <TweakRadio label="Role" value={t.role} options={['Dispatcher','Finance','Admin']} onChange={v=>setTweak('role',v)}/>
+      </TweakSection>
+      <TweakSection label="Demo">
+        <TweakButton label="Reset all mock data" secondary onClick={()=>{ localStorage.removeItem('ab_console_v1'); localStorage.removeItem('ab_board_f'); location.hash=''; location.reload(); }}/>
+      </TweakSection>
+    </TweaksPanel>
+  </Ctx.Provider>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

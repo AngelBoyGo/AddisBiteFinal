@@ -1,0 +1,99 @@
+/* Addis Bites — authoritative brand layer (maroon + gold + cream)
+   Source: handoff/app/tokens.json (tokens.ts is authoritative).
+   Loaded AFTER styles.css and courier.css, in all three apps.
+   Status colours keep their meaning and map onto the real semantic tokens:
+   slate = new · amber(gold) = waiting · red = problem · blue = info · green = done */
+
+:root{
+  /* brand */
+  --brand:#8E1B1B;
+  --brand-h:#6E1414;
+  --brand-weak:rgba(142,27,27,0.10);
+  --brand-fg:#8E1B1B;
+  --gold:#F2A93B;
+  --gold-deep:#D98A1F;
+  --cream:#F7F1E3;
+  --cream-deep:#EFE6D2;
+
+  /* neutrals — warm cream, not grey */
+  --bg:#FBF6EA;
+  --surface:#FFFFFF;
+  --surface-2:#F7F1E3;
+  --surface-3:#F1E8D6;
+  --hover:#EFE6D2;
+  --border:#E4D9C2;
+  --border-2:#CDBFA2;
+  --text:#2B2B2B;
+  --text-2:#6B6257;
+  --text-3:#8C8272;
+
+  /* status (semantic tokens) */
+  --slate-fg:#5A5348; --slate-bg:#EFE9DC; --slate-bd:#DCD2BE; --slate-dot:#8C8272;
+  --amber-fg:#7A4A05; --amber-bg:#FDF1DA; --amber-bd:#EFD3A0; --amber-dot:#D98A1F;
+  --red-fg:#9C1B1B;   --red-bg:#FBE9E7; --red-bd:#EFC1BB; --red-dot:#C62828;
+  --blue-fg:#1F4E7A;  --blue-bg:#E8F0F8; --blue-bd:#BED3E6; --blue-dot:#2F6FB0;
+  --green-fg:#1F5922; --green-bg:#E7F2E7; --green-bd:#BFDCC0; --green-dot:#2E7D32;
+  --purple-fg:#5B3AA0; --purple-bg:#F0EAFB; --purple-bd:#D6C7F2;
+
+  --shadow-pop:0 10px 30px rgba(43,26,10,.14),0 1px 3px rgba(43,26,10,.08);
+}
+[data-theme="dark"]{
+  --bg:#20130F; --surface:#33201A; --surface-2:#291813; --surface-3:#3F2A22; --hover:#432C22;
+  --border:#4E332A; --border-2:#634437;
+  --text:#F7EFE2; --text-2:#C4B4A4; --text-3:#9C8A79;
+  --brand:#A82727; --brand-h:#8E1B1B; --brand-weak:rgba(168,39,39,.22); --brand-fg:#E8928E;
+  --gold:#F2A93B; --gold-deep:#F0B45A; --cream:#3A241C; --cream-deep:#33201A;
+  --slate-fg:#C4B4A4; --slate-bg:#3A2A22; --slate-bd:#4E332A; --slate-dot:#9C8A79;
+  --amber-fg:#F0B45A; --amber-bg:#3A2A15; --amber-bd:#5A3F1C; --amber-dot:#F0B45A;
+  --red-fg:#E57368;   --red-bg:#3A1F1B; --red-bd:#5C2C26; --red-dot:#E57368;
+  --blue-fg:#8FB8DC;  --blue-bg:#1C2A38; --blue-bd:#2E455C; --blue-dot:#5B93C7;
+  --green-fg:#7BC47F; --green-bg:#1C2E1C; --green-bd:#2E4A2E; --green-dot:#4CAF50;
+  --purple-fg:#BCA3F0; --purple-bg:#251C38; --purple-bd:#3B2D58;
+  --shadow-pop:0 12px 32px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.4);
+}
+[data-theme="sun"]{
+  --bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#F4EDDD; --surface-3:#E8DFC9; --hover:#EFE6D2;
+  --border:#8C8272; --border-2:#2B2B2B; --text:#000000; --text-2:#2B2B2B; --text-3:#4A443A;
+  --brand:#7A1414; --brand-h:#5E0F0F; --brand-weak:#F6DEDC; --brand-fg:#7A1414;
+  --amber-fg:#4A2C00; --amber-bg:#FFDFA6; --amber-bd:#8A5300; --amber-dot:#B86E00;
+  --red-fg:#7A0A02; --red-bg:#FFC4BD; --red-bd:#B42318; --red-dot:#C41D10;
+  --blue-fg:#062F80; --blue-bg:#C2D6FF; --blue-bd:#1D4FB8; --blue-dot:#1A55D6;
+  --green-fg:#023F22; --green-bg:#B5EDCB; --green-bd:#0B6B3F; --green-dot:#078A4C;
+}
+html,body{background:var(--bg);color:var(--text)}
+body.c-body{background:#EDE3D0}
+[data-theme="dark"] body.c-body{background:#150C09}
+
+/* logo tile + brand fills use the maroon gradient from tokens.json */
+.logo{background:linear-gradient(135deg,var(--brand) 0%,var(--gold-deep) 130%);color:#FBF6EA}
+.c-power.on{background:linear-gradient(135deg,var(--brand),var(--brand-h));color:#FBF6EA;box-shadow:0 0 0 10px var(--brand-weak),0 12px 30px -12px rgba(142,27,27,.5)}
+.c-power.on .pulse{animation:ringMaroon 2.4s infinite}
+@keyframes ringMaroon{0%{box-shadow:0 0 0 0 rgba(142,27,27,.45)}100%{box-shadow:0 0 0 40px rgba(142,27,27,0)}}
+.k-hero .back{color:var(--brand)}
+.k-promo{background:linear-gradient(120deg,var(--brand) 0%,var(--brand-h) 55%,var(--gold-deep) 190%)}
+.k-splash{background:linear-gradient(160deg,var(--brand) 0%,#5E0F0F 60%,#3A0A0A 100%)}
+.k-ph{background-image:radial-gradient(circle at 20% 20%,rgba(255,255,255,.16) 0 14%,transparent 15%),radial-gradient(circle at 80% 70%,rgba(242,169,59,.22) 0 20%,transparent 21%),repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0 6px,transparent 6px 14px)}
+.k-ph.h0{background-color:#8E1B1B}.k-ph.h1{background-color:#B8571B}.k-ph.h2{background-color:#8A6224}
+.k-ph.h3{background-color:#7A1414}.k-ph.h4{background-color:#A82727}.k-ph.h5{background-color:#5E4A1F}
+.k-badge.partner{background:linear-gradient(135deg,var(--brand),var(--gold-deep));color:#FBF6EA}
+.k-chip.fast{border-color:var(--green-bd);color:var(--green-fg)}
+.k-chip.fast.on{background:var(--green-dot);border-color:var(--green-dot);color:#fff}
+.k-fast{background:var(--green-bg);color:var(--green-fg);border-color:var(--green-bd)}
+.k-cartbar{background:linear-gradient(135deg,var(--brand),var(--brand-h))}
+.c-big{background:linear-gradient(135deg,var(--brand),var(--brand-h))}
+.c-big:active{background:var(--brand-h)}
+.c-swipe{background:linear-gradient(135deg,var(--brand),var(--brand-h))}
+.k-activepill{background:#2B2B2B}
+[data-theme="dark"] .k-activepill{background:#432C22;border-color:var(--border)}
+.c-mirror .logo,.side-head .logo{background:linear-gradient(135deg,var(--brand) 0%,var(--gold-deep) 130%)}
+/* fee-tier + brand chips */
+.k-tier{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:5px;font-size:11px;font-weight:750;background:var(--amber-bg);color:var(--amber-fg);border:1px solid var(--amber-bd)}
+.k-norate{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-3);font-weight:650}
+.k-hours-unknown{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2)}
+/* audience badges in messages */
+.aud{display:inline-flex;align-items:center;height:17px;padding:0 5px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin-right:5px;vertical-align:1px}
+.aud.customer{background:var(--slate-bg);color:var(--slate-fg)}
+.aud.courier{background:var(--blue-bg);color:var(--blue-fg)}
+.aud.restaurant{background:var(--amber-bg);color:var(--amber-fg)}
+.aud.dispatch{background:var(--green-bg);color:var(--green-fg)}
+.aud.you{background:var(--brand);color:#FBF6EA}
