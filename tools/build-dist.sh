@@ -34,10 +34,7 @@ mkdir -p dist/admin
 cp -r ops-admin/dist/. dist/admin/
 
 echo "▸ Customer + Courier apps     →  dist/app/"
-mkdir -p dist/app
-cp apps/*.jsx apps/*.css apps/*.js dist/app/
-cp apps/customer.html dist/app/customer.html
-cp apps/courier.html  dist/app/courier.html
+node tools/stage-apps.mjs dist/app
 
 echo "▸ pointing dashboard links at their real paths"
 node tools/patch-links.mjs dist/assets/js/links.config.js
