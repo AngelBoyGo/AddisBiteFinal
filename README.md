@@ -4,8 +4,12 @@ Ethiopian food delivery for Addis Ababa. This repository holds two things:
 
 | Folder | What it is | Status |
 |---|---|---|
-| `site/` | The public website — landing page, customer & courier sign-up/sign-in, restaurant partner form, dispatch console sign-in | ✅ Built, deploying to Netlify |
-| `ops-console/` | The dispatch/operations console (React SPA) | ✅ Builds; not yet hosted |
+| `site/` | The public website — landing page, customer & courier sign-up/sign-in, restaurant partner form, dispatch console sign-in | ✅ Built and hosted |
+| `ops-console/` | The dispatch/operations console (React SPA) | ✅ Builds and hosts; UI only (mock data) |
+
+**Live:** https://511439b9-b0f1-4afe-8031-e834755411d9.vip.gensparksite.com — all five
+surfaces on one origin. `/admin/` and `/console/` sit behind the platform's own
+SSO gate; the public pages are open.
 
 ---
 
@@ -15,23 +19,59 @@ Read this before assuming anything is "already built".
 
 | Surface | Front-end built? | Wired to the API? | Hosted? |
 |---|---|---|---|
-| Landing page (`site/index.html`) | ✅ Yes | n/a | Netlify (this deploy) |
-| Customer sign-up / sign-in | ✅ Yes | ✅ `POST /api/auth/register` · `/api/auth/login` | Netlify (this deploy) |
-| Courier sign-up / sign-in | ✅ Yes | ✅ `/api/auth/driver-phone-signup` · `/api/auth/phone-login` | Netlify (this deploy) |
-| Restaurant partner sign-up | ✅ Yes | ✅ `POST /api/public/listing-intent` | Netlify (this deploy) |
-| Dispatch console sign-in | ✅ Yes | ✅ `POST /api/auth/operator-login` | Netlify (this deploy) |
-| Attribution step | ✅ Yes | ✅ `POST /api/waitlist` | Netlify (this deploy) |
-| Operations Console (`ops-console/`) | ✅ Yes — clickable | ❌ mock data, own store | ❌ Not hosted yet |
-| Customer app (browse / cart / track) | ⚠️ Design prototype only | ❌ | ❌ |
-| Courier app (go online / accept job) | ⚠️ Design prototype only | ❌ | ❌ |
-| Admin dashboard (`ops-admin/`) | ✅ Yes — clickable | ❌ mock data, own store | ❌ Not hosted yet |
+| Landing page (`site/index.html`) | ✅ Yes | n/a | ✅ Hosted |
+| Customer sign-up / sign-in | ✅ Yes | ✅ `POST /api/auth/register` · `/api/auth/login` | ✅ Hosted |
+| Courier sign-up / sign-in | ✅ Yes | ✅ `/api/auth/driver-phone-signup` · `/api/auth/phone-login` | ✅ Hosted |
+| Restaurant partner sign-up | ✅ Yes | ✅ `POST /api/public/listing-intent` | ✅ Hosted |
+| Dispatch console sign-in | ✅ Yes | ✅ `POST /api/auth/operator-login` | ✅ Hosted |
+| Attribution step | ✅ Yes | ✅ `POST /api/waitlist` | ✅ Hosted |
+| Operations Console (`ops-console/`) | ✅ Yes — clickable | ❌ mock data, own store | ✅ Hosted at `/console/` (SSO-gated) |
+| Customer app (browse / cart / track) | ⚠️ Design prototype only | ❌ | ⚠️ Hosted at `/app/customer.html` (prototype) |
+| Courier app (go online / accept job) | ⚠️ Design prototype only | ❌ | ⚠️ Hosted at `/app/courier.html` (prototype) |
+| Admin dashboard (`ops-admin/`) | ✅ Yes — clickable | ❌ mock data, own store | ✅ Hosted at `/admin/` (SSO-gated) |
 
 **A real backend exists and every public form now posts to it.** The API is a
-FastAPI service at `https://api.orderaddisbites.com` (Render; mirrors at
-`https://api-orderaddisbites.onrender.com`) backed by real PostgreSQL, exposing
-528 documented endpoints. The sign-up/sign-in forms were previously filing
-submissions into Netlify Forms — a void nobody read; that sink has been removed
-entirely and replaced with the live contract below.
+FastAPI service on Render backed by real PostgreSQL, exposing 528 documented
+endpoints. The sign-up/sign-in forms were previously filing submissions into
+Netlify Forms — a void nobody read; that sink has been removed entirely and
+replaced with the live contract below.
+
+> **Two hostnames, two different services.** They are not mirrors:
+>
+> | Host | Paths | Title | Owns the sign-up routes? |
+> |---|---|---|---|
+> | `api-orderaddisbites.onrender.com` | 528 | `FastAPI` | ✅ **this is the one we use** |
+> | `api.orderaddisbites.com` | 227 | `Addis Bites Command API` | ❌ 404 on register / OTP / waitlist |
+>
+> **We deliberately point at the Render host.** Merging the two backends is out
+> of scope; the Render service is the one with the sign-up contract and it works.
+> The host is set in exactly one place: `API_ORIGIN` in `src/index.js`.
+
+### How browser calls reach that API (this is what fixed the launch blocker)
+
+A direct browser call to the API failed **before it left the page**: the origin
+was not on the API's CORS allowlist, so the preflight returned HTTP 400 with no
+`access-control-allow-origin`. Every form was dead on arrival.
+
+CORS is a *browser* policy, so a **server-to-server call is not subject to it at
+all**. `src/index.js` therefore forwards every `/api/*` request from this
+Worker to the API, stripping `Origin` on the way out. The browser only ever
+talks to this site's own origin:
+
+```
+browser  →  /api/*  on our own origin   →  Worker proxy  →  api-orderaddisbites.onrender.com
+         (same-origin: no preflight)      (no CORS applies)
+```
+
+No allowlist change was needed on the API side, and none should be requested.
+`tools/test-funnel.mjs` asserts that the config `base` and `API_ORIGIN` agree,
+so these cannot silently drift apart.
+
+**Auth is `Authorization: Bearer <session_token>` — not cookies.** The OpenAPI
+document declares an `authorization` header on 496 operations and a `Set-Cookie`
+response header on none. The token comes back on login/register as
+`session_token` and is stored under `addisbites_user_token:<encoded origin>`,
+the same key the production app uses.
 
 The Operations Console and Admin dashboard remain **clickable GUIs on mock
 data** — they are the interaction contract for screens that have no backing
@@ -243,9 +283,21 @@ CI instead of silently in front of a customer.
 
 ### Deploying
 
-`netlify.toml` sets `publish = "site"` and runs the page generator as the build
-command. Deploys go to Netlify; see `site/README.md` for the deploy steps and the
-token-rotation warning.
+This project is hosted on **Genspark's managed Cloudflare** (Workers for
+Platform), not Netlify:
+
+```
+bash tools/build-dist.sh     # assemble all five surfaces into dist/
+gsk hosted deploy            # approve in the UI, then:
+gsk hosted action_wait --id <pending_action_id>
+```
+
+The published bundle is the committed `dist/` tree. `wrangler.jsonc` declares
+no D1, no KV, no R2 and no cron triggers, which is what the hosted pipeline
+supports — do not add those bindings or the deploy is rejected.
+
+The legacy `netlify.toml` is **not** the deploy path any more. The Netlify site
+is a separate, older deployment and was left untouched.
 
 ---
 
@@ -284,13 +336,24 @@ drifts from it.
 These are the remaining gates. They are **configuration and platform work, not
 code** — the front end is wired and verified against the live contract.
 
+### Solved — do not re-open these
+
+| Was a blocker | How it was closed |
+|---|---|
+| **CORS allowlist** | Solved by the `/api/*` Worker proxy. The browser is now same-origin, so there is no preflight and no allowlist to change. Verified live. |
+| **Cookie / SameSite** | Not applicable. Auth is a Bearer token in a header, not a cookie, so `SameSite` never enters the picture. |
+| **`role` value** | Confirmed live. `customer` is accepted and returns a session. `courier` is rejected with "Unsupported signup role"; the courier flow uses `driver` through the OTP path. |
+
+### Still open — real gates before public sign-ups
+
 | # | Blocker | Why it matters |
 |---|---|---|
-| 1 | **CORS allowlist** | The API's `access-control-allow-*` headers currently name only `orderaddisbites.com` / `www.` / `admin.`. Any other origin — including a staging host — is blocked by the **browser** before the request leaves the page. Nothing signs up until this origin is added. |
-| 2 | **SMS / OTP provider funded** | Courier sign-up and courier sign-in are phone + OTP. If the provider is unfunded or unconfigured, those two flows cannot complete regardless of the front end. |
-| 3 | **`role` value confirmed** | `/api/auth/register` accepts a `role`, but no enum is published. The site currently sends `customer`. Confirm that is the exact accepted value. |
-| 4 | **Lock down the docs surface** | `/openapi.json`, `/docs`, `/redoc` and `/api/health` are all public, and `/api/health` leaks ops configuration unauthenticated. Restrict before launch. |
-| 5 | **Cookie / SameSite** | Sessions are cookies and the API is cross-origin. `SameSite=Lax` cookies are not sent cross-site. Serving the API at an `api.` subdomain of the app's own domain keeps it same-site and avoids the problem. |
+| 1 | **SMS allowlist is one number wide** | AfroMessage is in beta behind `SMS_BETA_ALLOWLIST`. `POST /api/auth/send-otp` returns `{"sent":true,"method":"sms"}` for an allowlisted number and `"SMS delivery is temporarily unavailable"` for everyone else. **As configured right now, exactly one phone can receive a courier OTP.** Widen the list (Render env var, no redeploy of this site needed) before advertising courier sign-ups. |
+| 2 | **Telegram is the working courier path** | `/api/auth/telegram/start` returns a `telegram_url` + `session_id` + `poll_secret` for any number, allowlisted or not — verified live against `@AddisBiteMenuBot`. This is the path to lead with while the SMS allowlist is narrow. The front end still calls `send-otp` first, so this is a **front-end gap to close**, not a backend one. |
+| 3 | **Lock down the docs surface** | `/openapi.json`, `/docs`, `/redoc` and `/api/health` are public. `/api/health` **on the `api.` host** leaks ops config unauthenticated (`outreach_admin_url`, `github_product_token`, `telegram_group_configured`). The Render host's health endpoint leaks nothing (`status`/`db`/`release` only). |
+| 4 | **`SMS_DAILY_CAP`** | Currently `20`. Fine for a pilot, too low for a launch day. |
+| 5 | **Repo visibility** | `AddisBiteFinal` is **public** and therefore also publishes the 528-endpoint OpenAPI snapshot (`tools/openapi.snapshot.json`), 26 ops-console/admin source files, and the built dashboards. Recommend private, or drop the snapshot from the repo. |
+| 6 | **The `api.` hostname strips `access-control-allow-origin`** | Observed at the Cloudflare edge in front of the 227-path Command API. Does not affect us (we use the Render host and the proxy), but it is a real misconfiguration on that zone. |
 
 ## 9. Not implemented yet
 
