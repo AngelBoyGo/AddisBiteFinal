@@ -92,6 +92,24 @@
        />
   </span>
 </div>
+        <div class="field" data-telegram-block>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or verify with Telegram</span>
+  <span class="hint">Already have Telegram on that number? Sign in without waiting for a code.</span>
+  <button class="btn btn-ghost btn-block" type="button"
+    data-telegram-start data-telegram-role="driver">Continue with Telegram</button>
+  <span class="hint" data-telegram-status hidden aria-live="polite"></span>
+</div>
+        <div class="field" data-email-code-block hidden>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or send a code to my email</span>
+  <span class="hint">Prefer email? We send a code to the address on your application.</span>
+  <button class="btn btn-ghost btn-block" type="button" data-email-code-send data-email-code-role="driver">Email me a code</button>
+  <div class="field" data-email-code-step hidden style="margin-top:10px">
+    <label for="f-email-otp-code">Code from your email</label>
+    <input id="f-email-otp-code" name="email_otp_code" type="text" inputmode="numeric"
+      autocomplete="one-time-code" placeholder="6 digits" data-email-code-input />
+  </div>
+  <span class="hint" data-email-code-status hidden aria-live="polite"></span>
+</div>
         <div class="field">
   <label for="f-sub_city">Sub-city you work in</label>
   <span class="hint">Usually saved for you — check it is right.</span>

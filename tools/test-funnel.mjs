@@ -237,7 +237,11 @@ console.log('\n\u001b[1mFunnel: does the sign-up / sign-in flow actually behave?
   submit(w, form);
   await wait(900);
   check(navAttempts.length > 0, 'customer signup: valid submit navigates onward');
-  check(successTarget(form).includes('attribution'), `customer signup: target is the attribution step (${successTarget(form)})`);
+  /* A customer who now HAS an account belongs in their dashboard. This used to
+     point at attribution.html → thanks.html (the WAITLIST page, "You are on the
+     list"), which also offered "Add a restaurant" — reported as a miswiring. */
+  check(successTarget(form) === '/app/customer.html', `customer signup: target is the customer app, not a waitlist (${successTarget(form)})`);
+  check(!successTarget(form).includes('attribution'), 'customer signup: no attribution/waitlist detour');
   const id = JSON.parse(w.localStorage.getItem('ab.lastIdentity') || '{}');
   check(id.email === 'selam@example.com', 'customer signup: identity remembered for the next step');
   check(hit(logs, '/api/auth/register'), 'customer signup: posted to /api/auth/register');
@@ -252,7 +256,7 @@ console.log('\n\u001b[1mFunnel: does the sign-up / sign-in flow actually behave?
 
   setValues(form, {
     name: 'Dawit Haile', phone: '911234567', code: '123456', sub_city: 'Bole',
-    vehicle_type: 'Motorcycle', emergency_name: 'Sara', emergency_phone: '911111111',
+    vehicle_type: 'motorbike', emergency_name: 'Sara', emergency_phone: '911111111',
   });
   form.querySelectorAll('[data-must-check]').forEach((c) => { c.checked = true; });
 

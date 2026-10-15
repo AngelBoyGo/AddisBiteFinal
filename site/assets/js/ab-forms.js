@@ -11,6 +11,12 @@
        - data-success-url where to go on success
        - data-otp        marks a two-step phone form (send code, then verify)
      <button type="button" data-otp-send data-otp-phone="f-phone">Send code</button>
+     <button type="button" data-telegram-start data-telegram-role="driver">Continue with Telegram</button>
+     <span data-telegram-status hidden></span>
+
+   data-telegram-start marks the SECOND verification route. Nothing is typed:
+   the person taps a Telegram deep link and the API returns the session token
+   through the poll, so that path never needs a code field.
 
    Error handling: FastAPI returns 422 with
      {"detail":[{"loc":["body","email"],"msg":"Field required"}]}
@@ -212,7 +218,203 @@
     });
   }
 
+  /* ----------------------------------------------------------- Telegram */
+  /* The SECOND way to verify the same account (ABApi.telegramStart). Nothing
+     is typed: the person taps a deep link in Telegram, the API creates the
+     account, and the session token arrives through the poll — so this path
+     never needs a code field.
+
+     The tab is opened SYNCHRONOUSLY inside the click on purpose: an async
+     window.open() is treated as programmatic and gets popup-blocked. If it
+     is blocked anyway we surface the raw link instead of failing silently. */
+  function validateSkipCode(form) {
+    var code = form.querySelector('[name="code"]');
+    var was = code ? code.required : false;
+    if (code) code.required = false;   /* Telegram needs no code */
+    var ok = validate(form);
+    if (code) code.required = was;
+    return ok;
+  }
+
+  function wireTelegram(form) {
+    var btn = form.querySelector('[data-telegram-start]');
+    if (!btn) return;
+    var status = form.querySelector('[data-telegram-status]');
+    var timer = null;
+    var tab = null;
+
+    function tell(msg, kind) {
+      if (!status) { if (msg) window.ABToast && window.ABToast(msg); return; }
+      status.hidden = !msg;
+      status.textContent = msg || '';
+      status.setAttribute('data-tone', kind || 'info');
+    }
+    function stopPolling() { if (timer) { clearInterval(timer); timer = null; } }
+    window.addEventListener('pagehide', stopPolling);
+
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      clearAll(form);
+      if (!validateSkipCode(form)) return;
+
+      var values = API.zip(form);
+      values.role = btn.getAttribute('data-telegram-role') || 'customer';
+
+      /* open the tab NOW — inside the click — or the popup is blocked */
+      tab = window.open('', '_blank');
+
+      btn.disabled = true;
+      tell('Starting Telegram verification…', 'info');
+
+      API.telegramStart(values).then(function (s) {
+        if (!s || !s.session_id || !s.telegram_url) {
+          throw new Error('Telegram did not return a link. Try the other option.');
+        }
+        if (tab) { try { tab.location.href = s.telegram_url; } catch (e) { tab = null; } }
+        var expiresAt = Date.now() + Number(s.expires_in_seconds || 600) * 1000;
+        tell(tab
+          ? 'Waiting for you to tap “Start” in Telegram — keep this page open.'
+          : 'Your browser blocked the popup. Open this link to verify: ' + s.telegram_url, 'info');
+
+        stopPolling();
+        timer = setInterval(pollOnce, 2500);   /* the old site polls at 2500ms */
+
+        function pollOnce() {
+          if (Date.now() >= expiresAt) {
+            stopPolling(); btn.disabled = false;
+            tell('That link has expired. Tap the button again for a fresh one.', 'warn');
+            return;
+          }
+          API.telegramPoll(s.session_id, s.poll_secret).then(function (r) {
+            if (r && r.session_token) {
+              stopPolling();
+              tell('Verified. Taking you in…', 'ok');
+              try {
+                window.localStorage.setItem('ab.lastIdentity', JSON.stringify({
+                  form: form.getAttribute('data-api-form'),
+                  phone: API.normPhone(values.phone || ''),
+                  name: values.name || '', at: Date.now(), via: 'telegram'
+                }));
+              } catch (e) { /* private mode */ }
+              var next = form.getAttribute('data-success-url');
+              if (next) window.location.href = next;
+              else form.dispatchEvent(new CustomEvent('ab:verified', { detail: r, bubbles: true }));
+            }
+            /* {"status":"waiting"} — keep polling silently */
+          }).catch(function (err) {
+            var st = err && err.status;
+            if (st === 404 || st === 410) {
+              stopPolling(); btn.disabled = false;
+              tell('That link has expired. Tap the button again for a fresh one.', 'warn');
+            } else if (st === 429) {
+              tell('Still waiting for your tap — the server asked us to slow down.', 'info');
+            }
+            /* anything else: keep polling, the next tick may succeed */
+          });
+        }
+      }).catch(function (err) {
+        stopPolling();
+        btn.disabled = false;
+        if (tab) { try { tab.close(); } catch (e) {} }
+        tell(err && err.message ? err.message : 'Could not start Telegram verification.', 'warn');
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------- email code */
+  /* The THIRD way to verify — a code emailed to the address on the form.
+     INACTIVE until api.emailCode.enabled is true in links.config.js, because
+     the backend still has no email provider (see that file for the one-line
+     reason and the endpoint contract). The markup ships hidden; this function
+     unhides it only when the capability is really configured, so the UI never
+     offers a button that cannot deliver. */
+  function wireEmailCode(form) {
+    var block = form.querySelector('[data-email-code-block]');
+    if (!block) return;
+
+    var supported = API.emailCodeEnabled && API.emailCodeEnabled();
+    block.hidden = !supported;
+    if (!supported) return;
+
+    var sendBtn = block.querySelector('[data-email-code-send]');
+    var step = block.querySelector('[data-email-code-step]');
+    var input = block.querySelector('[data-email-code-input]');
+    var note = block.querySelector('[data-email-code-status]');
+    var cooldown = 0, timer = null;
+
+    function tell(msg, kind) {
+      if (!note) return;
+      note.hidden = !msg; note.textContent = msg || '';
+      note.setAttribute('data-tone', kind || 'info');
+    }
+    function tick() {
+      if (cooldown <= 0) {
+        clearInterval(timer); timer = null;
+        sendBtn.disabled = false;
+        sendBtn.textContent = sendBtn.dataset.label || 'Email me a code';
+        return;
+      }
+      cooldown -= 1;
+      sendBtn.textContent = 'Resend in ' + cooldown + 's';
+    }
+
+    sendBtn.addEventListener('click', function () {
+      var emailEl = form.querySelector('[name="email"]');
+      var email = emailEl ? String(emailEl.value || '').trim() : '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        if (emailEl) { markError(emailEl, 'Enter your email address first.'); emailEl.focus(); }
+        return;
+      }
+      if (!sendBtn.dataset.label) sendBtn.dataset.label = sendBtn.textContent;
+      sendBtn.disabled = true; sendBtn.textContent = 'Sending…';
+      tell('Emailing a code to ' + email + '…', 'info');
+
+      var payload = { email: email };
+      var who = API.zip(form);
+      if (who.name) payload.name = who.name;
+      if (sendBtn.getAttribute('data-email-code-role')) payload.role = sendBtn.getAttribute('data-email-code-role');
+
+      API.emailStart(payload).then(function (r) {
+        var id = r && (r.otp_id || r.session_id);
+        if (!id) throw new Error('The server did not return a verification id.');
+        form.dataset.emailOtpId = id;
+        if (step) step.hidden = false;
+        if (input) input.focus();
+        tell('Code sent. Enter the 6 digits from the email — it expires in 10 minutes.', 'ok');
+        cooldown = 45; timer = setInterval(tick, 1000);
+      }).catch(function (err) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = sendBtn.dataset.label;
+        tell(err && err.message ? err.message : 'Could not send the code.', 'warn');
+      });
+    });
+  }
+
   /* -------------------------------------------------------------- submit */
+  /* Shared success tail for EVERY submit path (SMS code, email code, plain
+     form). Remembers who signed up, then follows data-success-url — or, when a
+     page handles its own result, emits ab:submitted with the API payload. */
+  function afterSuccess(form, name, data) {
+    busy(form, false);
+    say(form, API.dryRun
+      ? 'Preview mode — that was simulated, nothing was saved. Continuing…'
+      : 'Done — taking you to the next step…', API.dryRun ? 'warn' : 'ok');
+    try {
+      var who = API.zip(form);
+      window.localStorage.setItem('ab.lastIdentity', JSON.stringify({
+        form: name,
+        email: who.email || '',
+        phone: API.normPhone(who.phone || ''),
+        name: who.name || who.owner_name || '',
+        marketing: who.marketing_opt_in === true,
+        at: Date.now()
+      }));
+    } catch (e2) { /* private mode */ }
+    var next = form.getAttribute('data-success-url');
+    if (next) window.location.href = next;
+    else form.dispatchEvent(new CustomEvent('ab:submitted', { detail: data, bubbles: true }));
+  }
+
   function wireForm(form) {
     var name = form.getAttribute('data-api-form');
     if (!name) return;
@@ -225,6 +427,8 @@
     });
 
     if (isOtp) wireOtp(form);
+    wireTelegram(form);   /* no-ops unless the form has a Telegram button */
+    wireEmailCode(form);  /* stays hidden unless api.emailCode.enabled is true */
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -237,6 +441,30 @@
         var btn = form.querySelector('[data-otp-send]');
         say(form, 'Tap “Send code” first — we need to text you a 6-digit code.', 'warn');
         if (btn) btn.focus();
+        return;
+      }
+
+      /* Third verification path — a code emailed to the address on the form.
+         If a code was sent for THIS form and the person typed it, that code IS
+         the verification: post it to /api/auth/email-otp/verify with the profile
+         fields, instead of running the form's normal transform. Dormant while
+         api.emailCode.enabled is false — the button is hidden then, so
+         dataset.emailOtpId is never set and this branch never runs. */
+      var otpId = form.dataset.emailOtpId || '';
+      var codeEl = form.querySelector('[data-email-code-input]');
+      var typed = codeEl ? String(codeEl.value || '').trim() : '';
+      if (otpId && typed) {
+        if (!validateSkipCode(form)) return;
+        form.setAttribute('aria-busy', 'true');
+        busy(form, true, 'Verifying…');
+        say(form, 'Checking your email code…', 'info');
+        API.emailVerify(otpId, typed)
+          .then(function (data) { afterSuccess(form, name, data); })
+          .catch(function (err) {
+            form.removeAttribute('aria-busy');
+            busy(form, false);
+            say(form, err && err.message ? err.message : 'That code was not accepted.', 'warn');
+          });
         return;
       }
 
@@ -255,29 +483,7 @@
       say(form, isOtp ? 'Checking your code…' : 'Sending…', 'info');
 
       API.call(req.path, req.body)
-        .then(function (data) {
-          busy(form, false);
-          say(form, API.dryRun
-            ? 'Preview mode — that was simulated, nothing was saved. Continuing…'
-            : 'Done — taking you to the next step…', API.dryRun ? 'warn' : 'ok');
-          /* Remember who we are, so later pages can greet and route correctly.
-             `marketing` rides along because the register schema has no consent
-             field — the opt-in is recorded on the attribution step instead. */
-          try {
-            var who = API.zip(form);
-            window.localStorage.setItem('ab.lastIdentity', JSON.stringify({
-              form: name,
-              email: who.email || '',
-              phone: API.normPhone(who.phone || ''),
-              name: who.name || who.owner_name || '',
-              marketing: who.marketing_opt_in === true,
-              at: Date.now()
-            }));
-          } catch (e2) { /* private mode */ }
-          var next = form.getAttribute('data-success-url');
-          if (next) window.location.href = next;
-          else form.dispatchEvent(new CustomEvent('ab:submitted', { detail: data, bubbles: true }));
-        })
+        .then(function (data) { afterSuccess(form, name, data); })
         .catch(function (err) {
           form.removeAttribute('aria-busy');
           busy(form, false);

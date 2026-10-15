@@ -71,7 +71,9 @@ function sampleFor(el) {
   if (n === 'code') return '123456';
   if (n.includes('sub_city')) return 'Bole';
   if (n.includes('telecom')) return 'ethio';
-  if (n.includes('vehicle')) return 'Motorcycle';
+  /* Must be the API's own lowercase enum — "Motorcycle" is rejected with
+     400 "Unsupported vehicle type" (probed live). See build-pages.mjs. */
+  if (n.includes('vehicle')) return 'motorbike';
   if (n.includes('license')) return 'yes';
   if (n.includes('peak_window')) return 'dinner';
   if (n.includes('start_availability')) return 'immediately';

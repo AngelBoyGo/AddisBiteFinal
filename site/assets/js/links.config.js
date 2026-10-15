@@ -67,6 +67,34 @@ window.AB_LINKS = {
      * (safer: a wrong value fails the login).                             */
     expectedRole: {
       customer: ''
+    },
+
+    /* --- the SECOND verification route: a code emailed to the address on the
+     *     form. NOT LIVE YET, and deliberately switched off rather than shown
+     *     as a button that cannot work.
+     *
+     *     Why it cannot work today: the API has NO email provider configured.
+     *     /api/admin/settings/integrations lists exactly Chapa payments, Chapa
+     *     webhook, Push, Sentry, OpenRouter and the Telegram ops feed — there is
+     *     no Resend / SendGrid / SES / SMTP key, so nothing on the backend can
+     *     send a code to an address. (Probed: POST /api/auth/password-reset/
+     *     request with channel:"email" answers 202 and mints a reset_id, so the
+     *     code framework EXISTS — but it is wired to PASSWORD RESET. Reusing it
+     *     to verify an account would change the person's password, so it is not
+     *     a substitute.)
+     *
+     *     To switch it on, the Render service needs (a) an email provider key
+     *     and (b) one endpoint pair. Then set enabled:true below — the button
+     *     activates itself and nothing else needs editing:
+     *
+     *       POST /api/auth/email-otp/start   {email*, name?, role?}
+     *            → {otp_id, expires_in_seconds}
+     *       POST /api/auth/email-otp/verify  {otp_id*, code*}
+     *            → {session_token, user}        (same shape as telegram/poll) */
+    emailCode: {
+      enabled:   false,
+      startPath: '/api/auth/email-otp/start',
+      verifyPath: '/api/auth/email-otp/verify'
     }
   },
 

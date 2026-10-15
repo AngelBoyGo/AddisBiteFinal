@@ -62,11 +62,6 @@
 </aside>
   <section class="auth-main">
     <div class="auth-card">
-      <div class="steps-bar" aria-hidden="true">
-  <span class="n on">1</span><span class="bar"></span>
-  <span class="n">2</span>
-  <span class="lbl">Your details</span>
-</div>
       <h1>Create your account</h1>
       <p class="sub">Two minutes now, dinner sorted later. We only ask for what we actually need to deliver to you.</p>
 
@@ -74,8 +69,13 @@
            (POST /api/auth/register → email*, password*, name, phone, role).
            The live site already uses that contract, so accounts created there
            keep working here. -->
+      <!-- On success go STRAIGHT to the customer app. It used to detour via
+           attribution.html → thanks.html, which is the WAITLIST page ("You are
+           on the list") and even offered "Add a restaurant" — nonsense for a
+           new customer. A customer who now HAS an account belongs in their
+           dashboard, not on a launch waitlist. -->
       <form class="form" data-api-form="customer.register"
-            data-success-url="attribution.html?after=customer-signup" novalidate>
+            data-success-url="/app/customer.html" novalidate>
         <input type="hidden" name="account_ref" data-account-ref value="" />
         <p class="form-status" data-form-status hidden></p>
         <div class="field">

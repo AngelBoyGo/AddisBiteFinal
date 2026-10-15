@@ -180,6 +180,46 @@ function fCode() {
   });
 }
 
+/* The SECOND way to verify the same account: Telegram.
+   Unlike the code path, nothing is typed — the person taps a deep link and the
+   API hands back the session token, so the form does not need a code field at
+   all. Wired by ab-forms.js via data-telegram-start; the button reads the form's
+   own values (name, phone, sub_city, vehicle_type …) and sends them with the
+   verification request, because /api/auth/telegram/start creates the account on
+   the tap. */
+function telegramAlt({ role = 'customer', note = '' } = {}) {
+  return `<div class="field" data-telegram-block>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or verify with Telegram</span>
+  ${note ? `<span class="hint">${note}</span>` : ''}
+  <button class="btn btn-ghost btn-block" type="button"
+    data-telegram-start data-telegram-role="${role}">Continue with Telegram</button>
+  <span class="hint" data-telegram-status hidden aria-live="polite"></span>
+</div>`;
+}
+
+/* The THIRD way to verify — a code sent to the email address on the form.
+   Rendered but HIDDEN: ab-forms.js unhides it only when
+   ABApi.emailCodeEnabled() is true (api.emailCode.enabled in links.config.js).
+
+   Why hidden rather than absent: the backend has no email provider today, so
+   shipping a button that cannot send would be a lie in the UI. Keeping the
+   markup here means the day the Render service gains an email key + the
+   /api/auth/email-otp/* pair, switching it on is ONE flag flip — no rebuild,
+   no re-deploy of this page. */
+function emailCodeAlt({ note = '', role = '' } = {}) {
+  return `<div class="field" data-email-code-block hidden>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or send a code to my email</span>
+  ${note ? `<span class="hint">${note}</span>` : ''}
+  <button class="btn btn-ghost btn-block" type="button" data-email-code-send${role ? ` data-email-code-role="${role}"` : ''}>Email me a code</button>
+  <div class="field" data-email-code-step hidden style="margin-top:10px">
+    <label for="f-email-otp-code">Code from your email</label>
+    <input id="f-email-otp-code" name="email_otp_code" type="text" inputmode="numeric"
+      autocomplete="one-time-code" placeholder="6 digits" data-email-code-input />
+  </div>
+  <span class="hint" data-email-code-status hidden aria-live="polite"></span>
+</div>`;
+}
+
 /* A group of checkboxes sharing one name. ABApi.zip() turns repeated names into
    a JSON array, which is what the courier's `days_available` field expects. */
 function fChecks({ name, legend, options, hint = '' }) {
@@ -239,7 +279,6 @@ const customerSignup = shell({
   ${customerAside}
   <section class="auth-main">
     <div class="auth-card">
-      ${stepsBar(0, ['Your details', 'How you found us'])}
       <h1>Create your account</h1>
       <p class="sub">Two minutes now, dinner sorted later. We only ask for what we actually need to deliver to you.</p>
 
@@ -247,8 +286,13 @@ const customerSignup = shell({
            (POST /api/auth/register → email*, password*, name, phone, role).
            The live site already uses that contract, so accounts created there
            keep working here. -->
+      <!-- On success go STRAIGHT to the customer app. It used to detour via
+           attribution.html → thanks.html, which is the WAITLIST page ("You are
+           on the list") and even offered "Add a restaurant" — nonsense for a
+           new customer. A customer who now HAS an account belongs in their
+           dashboard, not on a launch waitlist. -->
       <form class="form" data-api-form="customer.register"
-            data-success-url="attribution.html?after=customer-signup" novalidate>
+            data-success-url="/app/customer.html" novalidate>
         <input type="hidden" name="account_ref" data-account-ref value="" />
         ${status()}
         ${fText({ name: 'name', label: 'Full name', required: true, ph: 'Selam Bekele', autocomplete: 'name' })}
@@ -290,13 +334,15 @@ const customerSignin = shell({
   })}
   <section class="auth-main">
     <div class="auth-card">
-      ${stepsBar(0, ['Your details', 'How you found us'])}
       <h1>Sign in</h1>
       <p class="sub">Use the email address and password you signed up with.</p>
 
       <!-- POST /api/auth/login → {email*, password*, expected_role, totp_code} -->
+      <!-- Straight to the customer app on success — same reasoning as the
+           sign-up page: a signed-in customer goes to their dashboard, not to
+           the waitlist. -->
       <form class="form" data-api-form="customer.login"
-            data-success-url="attribution.html?after=customer-signin" novalidate>
+            data-success-url="/app/customer.html" novalidate>
         ${status()}
         ${fText({ name: 'email', label: 'Email address', type: 'email', required: true, ph: 'you@example.com', autocomplete: 'username' })}
         ${fText({ name: 'password', label: 'Password', type: 'password', required: true, ph: 'Your password', autocomplete: 'current-password' })}
@@ -353,6 +399,8 @@ const courierSignup = shell({
           ${fText({ name: 'name', label: 'Full name', required: true, ph: 'Dawit Haile', autocomplete: 'name' })}
           ${phoneOtp({ name: 'phone', label: 'Mobile number', hint: 'We text a code to this number. It also becomes your sign-in.' })}
           ${fCode()}
+          ${telegramAlt({ role: 'driver', note: 'No code to type. We open Telegram, you tap Start, and your application is created — everything you filled in above comes with it.' })}
+          ${emailCodeAlt({ role: 'driver', note: 'We email a 6-digit code to the address you gave above.' })}
           ${fText({ name: 'email', label: 'Email address', ph: 'you@example.com', autocomplete: 'email', hint: 'Optional — but it is how payout statements reach you.' })}
           ${fSelect({ name: 'sub_city', label: 'Sub-city you want to work in', required: true, options: SUB_CITIES, hint: 'You will only be offered jobs inside this area.' })}
           ${fSelect({
@@ -366,11 +414,19 @@ const courierSignup = shell({
           <legend>Your vehicle</legend>
           ${fSelect({
             name: 'vehicle_type', label: 'What will you deliver with?', required: true,
+            /* Values MUST be the API's OWN lowercase enum. Probed live:
+                 'Bicycle' -> 200, 'motorbike' -> 200,
+                 'Motorcycle' / 'motorcycle' / 'bike' -> 400 "Unsupported vehicle type".
+               The previous values (Motorcycle / Bicycle / Car / On foot) were
+               therefore REJECTED on submit — a live bug in courier sign-up.
+               Labels stay human-readable; only the sent value changed. */
             options: [
-              { v: 'Motorcycle', l: 'Motorcycle' },
-              { v: 'Bicycle', l: 'Bicycle' },
-              { v: 'Car', l: 'Car' },
-              { v: 'On foot', l: 'On foot (short distances)' }
+              { v: 'motorbike', l: 'Motorbike' },
+              { v: 'bicycle', l: 'Bicycle' },
+              { v: 'e_bike', l: 'E-bike' },
+              { v: 'scooter', l: 'Scooter' },
+              { v: 'car', l: 'Car' },
+              { v: 'foot', l: 'On foot (short distances)' }
             ]
           })}
           ${fSelect({
@@ -469,6 +525,8 @@ const courierSignin = shell({
         ${status()}
         ${phoneOtp({ name: 'phone', label: 'Mobile number', hint: 'The number your application was approved under.' })}
         ${fCode()}
+        ${telegramAlt({ role: 'driver', note: 'Already have Telegram on that number? Sign in without waiting for a code.' })}
+        ${emailCodeAlt({ role: 'driver', note: 'Prefer email? We send a code to the address on your application.' })}
         ${fSelect({ name: 'sub_city', label: 'Sub-city you work in', options: SUB_CITIES, hint: 'Usually saved for you — check it is right.' })}
         <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
       </form>
@@ -676,7 +734,6 @@ const thanks = shell({
   <p style="font-size:14.5px">Keep this reference handy. If you contact us about your account, quoting it gets you to the right person immediately.</p>
   <div class="acts">
     <a class="btn btn-primary" href="/">Back to Addis Bites</a>
-    <a class="btn btn-ghost" href="#" data-app-link="partnerSignup">Add a restaurant</a>
   </div>
   <p style="margin-top:34px;font-size:14px">Dispatchers are onboarding in waves by sub-city. If you signed up to deliver, watch for an SMS or a call from <span class="mono">+251 11 000 0000</span> — that is us.</p>
 </main>`

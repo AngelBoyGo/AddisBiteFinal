@@ -416,6 +416,83 @@
     return call('/api/auth/verify-otp', { phone: normPhone(phone), code: String(code).trim() });
   }
 
+  /* ------------------------------------------------------------ Telegram */
+  /* The SECOND way to verify an account. Contract confirmed from the live
+     deployment AND from the old production bundle (/tmp/prod.js), which polls
+     this pair every 2500ms:
+
+       POST /api/auth/telegram/start  {phone*, name, sub_city, role, vehicle_type,
+                                       email, telecom_provider, days_available[],
+                                       peak_window, license_valid, start_availability,
+                                       referral_code, emergency_name, emergency_phone,
+                                       background_check_accepted}
+         → {session_id, poll_secret, telegram_url, expires_in_seconds:600}
+
+       POST /api/auth/telegram/poll   {session_id*, poll_secret*}
+         → {"status":"waiting"}                       (person has not tapped yet)
+         → {"status":"verified", session_token, user} (tapped — THIS is the token)
+         → 404/410                                    (expired; start again)
+
+     There is no second token-exchange call: the bearer token arrives in the poll
+     response, and `call()` already stores whatever it finds in `session_token`.
+     `auth:false` because a verification call must never replay a stale token. */
+  function telegramStart(values) {
+    var v = values || {};
+    var body = { phone: normPhone(v.phone), role: v.role || 'customer' };
+    ['name', 'sub_city', 'vehicle_type', 'email', 'telecom_provider', 'peak_window',
+     'license_valid', 'start_availability', 'referral_code',
+     'emergency_name', 'emergency_phone'].forEach(function (k) {
+      if (v[k] !== undefined && v[k] !== '') body[k] = v[k];
+    });
+    if (v.emergency_phone) body.emergency_phone = normPhone(v.emergency_phone);
+    if (Array.isArray(v.days_available) && v.days_available.length) body.days_available = v.days_available;
+    if (v.background_check_accepted !== undefined) body.background_check_accepted = !!v.background_check_accepted;
+    return call('/api/auth/telegram/start', body, { auth: false });
+  }
+  function telegramPoll(sessionId, pollSecret) {
+    return call('/api/auth/telegram/poll',
+      { session_id: sessionId, poll_secret: pollSecret }, { auth: false });
+  }
+
+  /* ---------------------------------------------------------- email code */
+  /* The SECOND way to verify — a code sent to the email address on the form.
+     Paths come from links.config.js (api.emailCode.*) so switching it on is a
+     ONE-FLAG change, not a code change.
+
+     It is OFF today because the backend cannot send email: /api/admin/
+     settings/integrations lists only Chapa, Push, Sentry, OpenRouter and the
+     Telegram ops feed — there is no Resend/SendGrid/SES/SMTP key configured.
+     The endpoint pair below is the contract the Render service must implement;
+     it deliberately mirrors telegram/start + telegram/poll so the two routes
+     behave identically from the browser's point of view. */
+  var EMAIL = cfg.emailCode || {};
+  var EMAIL_START = EMAIL.startPath || '/api/auth/email-otp/start';
+  var EMAIL_VERIFY = EMAIL.verifyPath || '/api/auth/email-otp/verify';
+
+  function emailCodeEnabled() { return !!EMAIL.enabled; }
+
+  /* POST {email*, name?, role?, ...profile} → {otp_id, expires_in_seconds}
+     Profile fields travel WITH the request (exactly as they do for
+     telegram/start) so the account can be created the moment the code is
+     confirmed, instead of asking the person to fill the form twice. */
+  function emailStart(values) {
+    var v = values || {};
+    var body = { email: v.email };
+    ['name', 'role', 'phone', 'sub_city', 'vehicle_type', 'telecom_provider',
+     'peak_window', 'license_valid', 'start_availability', 'referral_code',
+     'emergency_name', 'emergency_phone'].forEach(function (k) {
+      if (v[k] !== undefined && v[k] !== '') body[k] = v[k];
+    });
+    if (v.emergency_phone) body.emergency_phone = normPhone(v.emergency_phone);
+    if (Array.isArray(v.days_available) && v.days_available.length) body.days_available = v.days_available;
+    if (v.background_check_accepted !== undefined) body.background_check_accepted = !!v.background_check_accepted;
+    return call(EMAIL_START, body, { auth: false });
+  }
+  /* POST {otp_id*, code*} → {session_token, user} — same shape as the poll. */
+  function emailVerify(otpId, code) {
+    return call(EMAIL_VERIFY, { otp_id: otpId, code: String(code).trim() }, { auth: false });
+  }
+
   /* --------------------------------------------------------- diagnostics */
   /* Reports whether the API is actually reachable THROUGH THIS SITE's own
      /api/* proxy (src/index.js). Because the proxy makes the call same-origin,
@@ -462,6 +539,13 @@
     formMap: FORMS,
     sendOtp: sendOtp,
     verifyOtp: verifyOtp,
+    /* Second verification path — see the Telegram block above. */
+    telegramStart: telegramStart,
+    telegramPoll: telegramPoll,
+    /* Third path (email code) — inactive until api.emailCode.enabled is true. */
+    emailCodeEnabled: emailCodeEnabled,
+    emailStart: emailStart,
+    emailVerify: emailVerify,
     diagnose: diagnose,
     /* Session helpers — Bearer token, see the `auth` block above. */
     getToken: getToken,

@@ -116,6 +116,24 @@
        />
   </span>
 </div>
+          <div class="field" data-telegram-block>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or verify with Telegram</span>
+  <span class="hint">No code to type. We open Telegram, you tap Start, and your application is created — everything you filled in above comes with it.</span>
+  <button class="btn btn-ghost btn-block" type="button"
+    data-telegram-start data-telegram-role="driver">Continue with Telegram</button>
+  <span class="hint" data-telegram-status hidden aria-live="polite"></span>
+</div>
+          <div class="field" data-email-code-block hidden>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or send a code to my email</span>
+  <span class="hint">We email a 6-digit code to the address you gave above.</span>
+  <button class="btn btn-ghost btn-block" type="button" data-email-code-send data-email-code-role="driver">Email me a code</button>
+  <div class="field" data-email-code-step hidden style="margin-top:10px">
+    <label for="f-email-otp-code">Code from your email</label>
+    <input id="f-email-otp-code" name="email_otp_code" type="text" inputmode="numeric"
+      autocomplete="one-time-code" placeholder="6 digits" data-email-code-input />
+  </div>
+  <span class="hint" data-email-code-status hidden aria-live="polite"></span>
+</div>
           <div class="field">
   <label for="f-email">Email address</label>
   <span class="hint">Optional — but it is how payout statements reach you.</span>
@@ -163,10 +181,12 @@
   
   <select id="f-vehicle_type" name="vehicle_type" required>
     <option value="">Choose…</option>
-    <option value="Motorcycle">Motorcycle</option>
-    <option value="Bicycle">Bicycle</option>
-    <option value="Car">Car</option>
-    <option value="On foot">On foot (short distances)</option>
+    <option value="motorbike">Motorbike</option>
+    <option value="bicycle">Bicycle</option>
+    <option value="e_bike">E-bike</option>
+    <option value="scooter">Scooter</option>
+    <option value="car">Car</option>
+    <option value="foot">On foot (short distances)</option>
   </select>
 </div>
           <div class="field">

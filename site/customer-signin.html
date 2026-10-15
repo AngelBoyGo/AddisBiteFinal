@@ -62,17 +62,15 @@
 </aside>
   <section class="auth-main">
     <div class="auth-card">
-      <div class="steps-bar" aria-hidden="true">
-  <span class="n on">1</span><span class="bar"></span>
-  <span class="n">2</span>
-  <span class="lbl">Your details</span>
-</div>
       <h1>Sign in</h1>
       <p class="sub">Use the email address and password you signed up with.</p>
 
       <!-- POST /api/auth/login → {email*, password*, expected_role, totp_code} -->
+      <!-- Straight to the customer app on success — same reasoning as the
+           sign-up page: a signed-in customer goes to their dashboard, not to
+           the waitlist. -->
       <form class="form" data-api-form="customer.login"
-            data-success-url="attribution.html?after=customer-signin" novalidate>
+            data-success-url="/app/customer.html" novalidate>
         <p class="form-status" data-form-status hidden></p>
         <div class="field">
   <label for="f-email">Email address <span class="req" aria-hidden="true">*</span></label>
