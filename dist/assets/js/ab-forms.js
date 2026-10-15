@@ -281,12 +281,11 @@
         .catch(function (err) {
           form.removeAttribute('aria-busy');
           busy(form, false);
-          /* Field-level errors land on the field; everything else gets a banner. */
+          /* Field-level errors land on the field; everything else gets a banner.
+             No CORS special-case any more: calls are same-origin through this
+             site's own /api/* proxy, so that failure mode cannot occur. */
           var placed = err && err.status === 422 ? applyApiErrors(form, err) : false;
-          var extra = err && err.kind === 'cors'
-            ? ' (The site is not yet allowed to call the API from this address — tell the team the origin needs adding to the CORS allowlist.)'
-            : '';
-          say(form, (err && err.message ? err.message : 'Something went wrong.') + extra, 'warn');
+          say(form, err && err.message ? err.message : 'Something went wrong.', 'warn');
           if (!placed) { var f = form.querySelector('[aria-invalid="true"]'); if (f) f.focus(); }
         });
     });

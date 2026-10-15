@@ -37,10 +37,48 @@
   var cfg = (window.AB_LINKS && window.AB_LINKS.api) || {};
   var BASE = (cfg.base || '').replace(/\/+$/, '');
   var TIMEOUT = cfg.timeoutMs || 20000;
-  var CREDS = cfg.credentials || 'include';
+  var CREDS = cfg.credentials || 'same-origin';
   /* Preview-only simulation. See links.config.js — false in production. */
   var DRY = !!cfg.dryRun;
   if (DRY && window.console) console.warn('[ab-api] PREVIEW DRY RUN: form submissions are simulated and NOT saved.');
+
+  /* ----------------------------------------------------------------- auth */
+  /* Bearer TOKEN, not a cookie. Verified against the live OpenAPI document:
+   * it declares an `authorization` header on 496 operations and a Set-Cookie
+   * response header on NONE. Probed live on /api/auth/me —
+   *   no header                → 401 {"detail":"Not authenticated"}
+   *   Authorization: Bearer x  → 401 {"detail":"Invalid token"}
+   * (a cookie gets you the first response, a bearer token the second), so the
+   * header is the credential.
+   *
+   * Field name and storage key mirror the existing production app, so a session
+   * created there is the same shape as one created here:
+   *   body field : session_token
+   *   storage    : addisbites_user_token:<encodeURIComponent(origin)>
+   * The origin suffix keeps a token from one host from being replayed at another. */
+  var TOKEN_KEY = 'addisbites_user_token:' + encodeURIComponent(
+    (typeof location !== 'undefined' && location.origin) ? location.origin : 'unknown'
+  );
+
+  /* Accept the token from whichever field the endpoint uses. `session_token` is
+   * what the production bundle reads; the others are cheap tolerance so a
+   * change on the API side does not silently break sign-in. */
+  function pickToken(payload) {
+    if (!payload || typeof payload !== 'object') return '';
+    var t = payload.session_token || payload.access_token || payload.token || '';
+    return typeof t === 'string' ? t : '';
+  }
+
+  function getToken() {
+    try { return window.localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+  function setToken(t) {
+    try {
+      if (t) window.localStorage.setItem(TOKEN_KEY, t);
+      else window.localStorage.removeItem(TOKEN_KEY);
+    } catch (e) { /* private mode */ }
+  }
+  function isSignedIn() { return !!getToken(); }
 
   /* ------------------------------------------------------------------ util */
 
@@ -94,7 +132,11 @@
 
   function call(path, body, opts) {
     opts = opts || {};
-    if (DRY) {
+    /* `opts.dryRun` overrides the config for one call. Used by the test suite
+       (which runs against a dryRun:true preview but must still exercise the
+       real fetch path) and available to a future "test connection" button. */
+    var dry = opts.dryRun === undefined ? DRY : !!opts.dryRun;
+    if (dry) {
       /* Simulate a successful round-trip so the funnel can be walked offline.
          Deliberately returns the same shape a real 2xx would. */
       if (window.console) console.info('[ab-api] dry-run →', path, body);
@@ -113,6 +155,11 @@
       headers: { 'Accept': 'application/json' },
       signal: ctrl ? ctrl.signal : undefined
     };
+    /* Attach the bearer token on every call when we hold one. `opts.auth ===
+       false` opts out (needed for login/register, which must not send a stale
+       token from a previous session). */
+    var tok = getToken();
+    if (tok && opts.auth !== false) init.headers['Authorization'] = 'Bearer ' + tok;
     if (body !== undefined && body !== null) {
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body);
@@ -124,8 +171,14 @@
         var payload = null;
         if (text) { try { payload = JSON.parse(text); } catch (_) { payload = text; } }
         if (!res.ok) {
+          /* A rejected token is a dead session — drop it so the next attempt is
+             an honest anonymous one rather than a stale-token failure loop. */
+          if (res.status === 401) setToken('');
           throw ApiError(humanError(res.status, payload), res.status, payload, 'http');
         }
+        /* Any successful response carrying a session token refreshes ours. */
+        var t = pickToken(payload);
+        if (t) setToken(t);
         return payload;
       });
     }).catch(function (err) {
@@ -134,16 +187,16 @@
       if (err && err.name === 'AbortError') {
         throw ApiError('That took too long. Check your connection and try again.', 0, null, 'timeout');
       }
-      /* fetch() rejects with a bare TypeError for BOTH a genuine network
-         failure and a CORS rejection, so distinguish by elapsed time: a CORS
-         block fails immediately (no connection is ever made). */
+      /* Calls are same-origin (relative /api/* paths, forwarded by the Worker in
+         src/index.js), so a CORS block is no longer possible. A rejection here
+         is therefore either a real network problem or this site's own Worker
+         being unreachable. When the Worker itself cannot reach the API it
+         returns HTTP 502 with a JSON detail — that arrives as a normal HTTP
+         error above, never here. */
       var ms = Date.now() - started;
-      var kind = ms < 250 ? 'cors' : 'network';
       throw ApiError(
-        kind === 'cors'
-          ? 'This site is not yet allowed to reach the Addis Bites servers. Nothing was saved.'
-          : 'We could not reach the Addis Bites servers. Check your connection and try again.',
-        0, { elapsedMs: ms }, kind
+        'We could not reach the Addis Bites servers. Check your connection and try again.',
+        0, { elapsedMs: ms }, 'network'
       );
     });
   }
@@ -364,26 +417,23 @@
   }
 
   /* --------------------------------------------------------- diagnostics */
-  /* Because CORS blocks requests before they leave the browser, "it doesn't
-     work" is ambiguous. This tells the truth about WHICH failure it is. */
+  /* Reports whether the API is actually reachable THROUGH THIS SITE's own
+     /api/* proxy (src/index.js). Because the proxy makes the call same-origin,
+     a failure here is a real reachability problem — a CORS block is no longer a
+     possible cause, which is why this no longer tries to guess between them. */
   function diagnose() {
     var started = Date.now();
     return fetch(BASE + '/api/health', { method: 'GET', credentials: CREDS, headers: { Accept: 'application/json' } })
       .then(function (r) {
         return r.text().then(function (t) {
-          var ok = r.ok;
-          return { reachable: true, cors: true, status: r.status, ms: Date.now() - started, body: t.slice(0, 200), base: BASE, ok: ok };
+          return { reachable: true, status: r.status, ms: Date.now() - started, body: t.slice(0, 200), base: BASE || location.origin + ' (via /api/* proxy)', ok: r.ok };
         });
       })
       .catch(function (e) {
-        var ms = Date.now() - started;
         return {
           reachable: false,
-          cors: ms > 250,               /* slow failure = real network problem, fast = CORS block */
-          ms: ms, base: BASE, ok: false,
-          error: ms < 250
-            ? 'Blocked before leaving the browser — this origin is not in the API CORS allowlist.'
-            : ('Could not reach the API at all: ' + (e && e.message ? e.message : e))
+          ms: Date.now() - started, base: BASE || location.origin, ok: false,
+          error: 'Could not reach the API through this site\u2019s /api proxy: ' + (e && e.message ? e.message : e)
         };
       });
   }
@@ -413,6 +463,10 @@
     sendOtp: sendOtp,
     verifyOtp: verifyOtp,
     diagnose: diagnose,
+    /* Session helpers — Bearer token, see the `auth` block above. */
+    getToken: getToken,
+    setToken: setToken,
+    isSignedIn: isSignedIn,
     /* Resolve "customer.register" → the transform's request. */
     build: function (formName, values) {
       var key = FORMS[formName] || formName;

@@ -187,16 +187,16 @@
       if (err && err.name === 'AbortError') {
         throw ApiError('That took too long. Check your connection and try again.', 0, null, 'timeout');
       }
-      /* fetch() rejects with a bare TypeError for BOTH a genuine network
-         failure and a CORS rejection, so distinguish by elapsed time: a CORS
-         block fails immediately (no connection is ever made). */
+      /* Calls are same-origin (relative /api/* paths, forwarded by the Worker in
+         src/index.js), so a CORS block is no longer possible. A rejection here
+         is therefore either a real network problem or this site's own Worker
+         being unreachable. When the Worker itself cannot reach the API it
+         returns HTTP 502 with a JSON detail — that arrives as a normal HTTP
+         error above, never here. */
       var ms = Date.now() - started;
-      var kind = ms < 250 ? 'cors' : 'network';
       throw ApiError(
-        kind === 'cors'
-          ? 'This site is not yet allowed to reach the Addis Bites servers. Nothing was saved.'
-          : 'We could not reach the Addis Bites servers. Check your connection and try again.',
-        0, { elapsedMs: ms }, kind
+        'We could not reach the Addis Bites servers. Check your connection and try again.',
+        0, { elapsedMs: ms }, 'network'
       );
     });
   }

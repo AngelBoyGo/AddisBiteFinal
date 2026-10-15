@@ -211,9 +211,6 @@ console.log('\n\u001b[1mFunnel: does the sign-up / sign-in flow actually behave?
   check(w.ABApi.isSignedIn() === false, 'a 401 clears the stale token (no retry loop)');
 }
 
-  w.fetch = realFetch;
-}
-
 /* -------------------------------------------- 1. customer sign-up + consent */
 {
   const { w, navAttempts, logs } = open('customer-signup.html');
