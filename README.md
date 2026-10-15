@@ -352,10 +352,36 @@ code** — the front end is wired and verified against the live contract.
 | 2 | **Telegram is the working courier path** | `/api/auth/telegram/start` returns a `telegram_url` + `session_id` + `poll_secret` for any number, allowlisted or not — verified live against `@AddisBiteMenuBot`. This is the path to lead with while the SMS allowlist is narrow. The front end still calls `send-otp` first, so this is a **front-end gap to close**, not a backend one. |
 | 3 | **Lock down the docs surface** | `/openapi.json`, `/docs`, `/redoc` and `/api/health` are public. `/api/health` **on the `api.` host** leaks ops config unauthenticated (`outreach_admin_url`, `github_product_token`, `telegram_group_configured`). The Render host's health endpoint leaks nothing (`status`/`db`/`release` only). |
 | 4 | **`SMS_DAILY_CAP`** | Currently `20`. Fine for a pilot, too low for a launch day. |
-| 5 | **Repo visibility** | `AddisBiteFinal` is **public** and therefore also publishes the 528-endpoint OpenAPI snapshot (`tools/openapi.snapshot.json`), 26 ops-console/admin source files, and the built dashboards. Recommend private, or drop the snapshot from the repo. |
-| 6 | **The `api.` hostname strips `access-control-allow-origin`** | Observed at the Cloudflare edge in front of the 227-path Command API. Does not affect us (we use the Render host and the proxy), but it is a real misconfiguration on that zone. |
+| 5 | **Repo visibility** | `AddisBiteFinal` is **public** and therefore also publishes the 528-endpoint OpenAPI snapshot (`tools/openapi.snapshot.json`), 26 ops-console/admin source files, and the built dashboards. Recommend private, or drop the snapshot from the repo. || 6 | **The `api.` hostname strips `access-control-allow-origin`** | Observed at the Cloudflare edge in front of the 227-path Command API. Does not affect us (we use the Render host and the proxy), but it is a real misconfiguration on that zone. |
 
 ## 9. Not implemented yet
+
+### Account verification — two routes, one live today
+
+The courier forms (and any surface that needs a verified phone) offer **two ways
+to verify the same account**:
+
+| Route | Status | Why |
+|---|---|---|
+| **Telegram** | **LIVE** | `POST /api/auth/telegram/start` → `{session_id, poll_secret, telegram_url, expires_in_seconds:600}`, then `POST /api/auth/telegram/poll` every 2500 ms. The bearer token arrives **in the poll response** as `{status:"verified", session_token, user}` — there is no second exchange call. `404`/`410` means expired (confirmed live: a link left untapped for 10 min returns `410 "Telegram verification expired"`). Nothing to type, and no bot token is needed from us — the API mints the deep link. |
+| **Emailed code** | **NOT LIVE — backend work needed** | The API has **no email provider configured**. `GET /api/admin/settings/integrations` lists exactly: Chapa payments, Chapa webhook, Push, Sentry, OpenRouter, Telegram ops feed. `GET /api/admin/health` agrees (MongoDB, Chapa, AfroMessage SMS, OpenRouter, Sentry, Google geocoding, Telegram). The only code-sending endpoint is `POST /api/auth/password-reset/request`, which accepts `channel:"email"` and returns `202` + a `reset_id` — but that is wired to **password reset**, so reusing it to verify an account would change the person's password. |
+| **SMS code** | One number only | AfroMessage is in beta behind `SMS_BETA_ALLOWLIST`. Non-allowlisted numbers get `"SMS delivery is temporarily unavailable"`. |
+
+**To switch email codes on** the Render service needs (a) an email provider key
+and (b) this endpoint pair, which deliberately mirrors the Telegram one:
+
+```
+POST /api/auth/email-otp/start   {email*, name?, role?, ...profile}
+     → {otp_id, expires_in_seconds}
+POST /api/auth/email-otp/verify  {otp_id*, code*}
+     → {session_token, user}
+```
+
+Then set `api.emailCode.enabled: true` in `site/assets/js/links.config.js`. The
+front end is already written and tested — the button ships **hidden** and reveals
+itself only when the capability is really configured, so the UI never offers a
+button that cannot deliver. No rebuild of the page is needed to flip it.
+
 
 - The customer app (browse / cart / checkout / track) as running software
 - The courier app (go online / accept job) as running software
