@@ -10,8 +10,10 @@
   //   /app/customer.html   Customer app
   //   /app/courier.html    Courier app
   //
-  // src/index.js is a one-line pass-through to the ASSETS binding. Static only:
-  // no D1, no KV (unsupported by the hosted pipeline), no R2, no cron triggers.
+  // src/index.js serves the ASSETS binding and proxies /api/* server-to-server
+  // to the Addis Bites API (that is what removes the browser CORS failure).
+  // Storage is untouched: no D1, no KV (unsupported by the hosted pipeline),
+  // no R2, no cron triggers.
   // Dashboard links are patched into the dist copy alone (tools/patch-links.mjs).
   "name": "addisbites",
   "main": "src/index.js",
