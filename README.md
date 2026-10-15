@@ -72,6 +72,32 @@ Convenience redirects (`netlify.toml`): `/signin` → customer sign-in,
 `/signup` → customer sign-up, `/partner` → partner form, `/drive` and `/deliver`
 → courier sign-up, `/console` → dispatch sign-in.
 
+### The staff surface is not advertised in public copy
+
+The internal operations console is staff-only, so the public pages no longer
+mention it beyond a single link. Exactly one dispatch entry point exists on the
+whole landing page — **"Dispatch login"** in the footer bar. There is no
+"Dispatch desk" block, no "Dispatch console" nav item, and no "Dispatch &
+finance" audience card (the audience grid is three cards: Customers,
+Restaurants, Couriers). `dispatch-signin.html` carries no marketing aside: the
+panel that described the float, the payment queues and the courier network was
+removed, because that is internal-operations detail. The sign-in form itself is
+unchanged.
+
+### i18n (EN / አማርኛ)
+
+`assets/js/app.js` translates any element marked `data-i18n`. The baseline is
+captured **per element** into `data-i18n-en`, and a missing dictionary entry
+falls back to English — so a gap degrades to English rather than to blank text.
+
+> Historical bug, pinned by a test: the markup writes
+> `<span data-i18n>How it works</span>` with **no attribute value**, and the old
+> code keyed its cache on `getAttribute('data-i18n')` — which is `""` for every
+> such node. It therefore stored one entry and painted that single string into
+> *every* i18n node, which is why "How it works" rendered four times in the nav
+> and the hero, and why the Amharic toggle translated nothing
+> (`AM[""]` is `undefined`). `tools/test-copy.mjs` now guards this.
+
 ### The attribution step
 
 Every funnel ends at `attribution.html?after=<origin>`. It captures a single
@@ -198,9 +224,17 @@ deploy:
 node tools/build-pages.mjs       # regenerate the 8 auth/partner pages
 node tools/verify-contract.mjs   # every form payload vs the live OpenAPI schema
 node tools/test-funnel.mjs       # the sign-up / sign-in flow, driven for real
+node tools/test-copy.mjs         # i18n labels + the ops-copy removals stay fixed
 node tools/smoke-test.mjs        # console + admin still mount, store invariants
 tools/assemble-preview.sh        # build the single-origin manual-test preview
 ```
+
+`test-copy.mjs` drives the real `app.js` in jsdom and asserts the reported
+defects cannot return: the header nav shows four *distinct* labels, "How it
+works" appears exactly once, the Amharic toggle actually produces Ethiopic
+script (and switching back restores English), the landing page has exactly one
+dispatch link and it sits in the footer, and `dispatch-signin.html` has no
+operations aside.
 
 `verify-contract.mjs` runs the **same** `ABApi.zip` + `ABApi.build` the browser
 runs, then validates the result against `tools/openapi.snapshot.json` (a snapshot
