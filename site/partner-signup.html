@@ -52,11 +52,12 @@
   </header>
 
   <div class="form-card">
-    <form class="form" name="partner-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+    <!-- POST /api/public/listing-intent — the API's own public partner intake.
+         Required by the schema: name*, phone*. Consent fields (partner_consent,
+         signed_name, consent_method) are what make the submission legally valid,
+         so they are always sent. -->
+    <form class="form" data-api-form="partner.listing"
           data-success-url="attribution.html?after=partner-signup" novalidate>
-      <input type="hidden" name="form-name" value="partner-signup" />
-  <p hidden aria-hidden="true" style="display:none"><label>Do not fill this out: <input name="bot-field" /></label></p>
-      <input type="hidden" name="account_ref" data-account-ref value="" />
       <p class="form-status" data-form-status hidden></p>
 
       <fieldset>
@@ -91,37 +92,26 @@
   </select>
 </div>
         <div class="field">
-  <label for="f-address">Street, building or landmark <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-landmark">Street, building or landmark <span class="req" aria-hidden="true">*</span></label>
   <span class="hint">A landmark your couriers will recognise helps most.</span>
   <span class="" style="display:block">
     
-    <input id="f-address" name="address" type="text" required
+    <input id="f-landmark" name="landmark" type="text" required
       placeholder="Bole, near Edna Mall, ground floor"
       
        />
   </span>
 </div>
         <div class="field">
-  <label for="f-dishes">Your most popular dishes <span class="req" aria-hidden="true">*</span></label>
-  <span class="hint">We show these first when customers browse near you.</span>
+  <label for="f-cuisine">What kind of food do you serve?</label>
+  
   <span class="" style="display:block">
     
-    <input id="f-dishes" name="dishes" type="text" required
-      placeholder="Doro wat, kitfo, tibs, shiro"
+    <input id="f-cuisine" name="cuisine" type="text"
+      placeholder="Ethiopian traditional, fasting-day menu, grill…"
       
        />
   </span>
-</div>
-        <div class="field">
-  <label for="f-price_band">Typical price per main dish</label>
-  
-  <select id="f-price_band" name="price_band">
-    <option value="">Choose…</option>
-    <option value="under200">Under ETB 200</option>
-    <option value="200to400">ETB 200–400</option>
-    <option value="400to700">ETB 400–700</option>
-    <option value="over700">Over ETB 700</option>
-  </select>
 </div>
         <div class="field">
   <label for="f-hours">Opening hours <span class="req" aria-hidden="true">*</span></label>
@@ -133,45 +123,67 @@
       <fieldset>
         <legend>Who should we contact?</legend>
         <div class="field">
-  <label for="f-contact_name">Owner or manager name <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-owner_name">Owner or manager name <span class="req" aria-hidden="true">*</span></label>
   
   <span class="" style="display:block">
     
-    <input id="f-contact_name" name="contact_name" type="text" required
+    <input id="f-owner_name" name="owner_name" type="text" required
       placeholder="Full name"
       
        />
   </span>
 </div>
         <div class="field-row"><div class="field">
-  <label for="f-contact_phone">Mobile number <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-phone">Mobile number <span class="req" aria-hidden="true">*</span></label>
   
   <span class="input-prefix" style="display:block">
     <span class="pfx" aria-hidden="true">+251</span>
-    <input id="f-contact_phone" name="contact_phone" type="tel" required
+    <input id="f-phone" name="phone" type="tel" required
       placeholder="91 234 5678"
       data-digits="9" inputmode="tel"
        />
   </span>
 </div>
   <div class="field">
-  <label for="f-contact_email">Email address <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-email">Email address</label>
   
   <span class="" style="display:block">
     
-    <input id="f-contact_email" name="contact_email" type="email" required
+    <input id="f-email" name="email" type="email"
       placeholder="you@example.com" autocomplete="email"
       
        />
   </span>
 </div></div>
         <div class="field">
-  <label for="f-calling_hours">Best time to call you</label>
+  <label for="f-owner_role">Your role at the restaurant</label>
+  
+  <select id="f-owner_role" name="owner_role">
+    <option value="">Choose…</option>
+    <option value="owner">I own it</option>
+    <option value="manager">I manage it</option>
+    <option value="family">It is a family business</option>
+    <option value="staff">I work here</option>
+  </select>
+</div>
+        <div class="field">
+  <label for="f-telegram">Telegram username</label>
+  <span class="hint">Fastest way for us to reach you.</span>
+  <span class="" style="display:block">
+    
+    <input id="f-telegram" name="telegram" type="text"
+      placeholder="@yourshop"
+      
+       />
+  </span>
+</div>
+        <div class="field">
+  <label for="f-website">Website or Facebook page</label>
   
   <span class="" style="display:block">
     
-    <input id="f-calling_hours" name="calling_hours" type="text"
-      placeholder="Weekdays before 11:00"
+    <input id="f-website" name="website" type="text"
+      placeholder="optional"
       
        />
   </span>
@@ -182,9 +194,9 @@
         <legend>How we pay you</legend>
         <p class="hint" style="margin:-6px 0 16px;font-size:13.5px">We need an account that accepts Ethiopian Birr so we can settle each order the same day.</p>
         <div class="field">
-  <label for="f-settlement_method">Preferred settlement <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-payout_method">Preferred settlement <span class="req" aria-hidden="true">*</span></label>
   
-  <select id="f-settlement_method" name="settlement_method" required>
+  <select id="f-payout_method" name="payout_method" required>
     <option value="">Choose…</option>
     <option value="Telebirr">Telebirr mobile money</option>
     <option value="CBE">CBE bank transfer</option>
@@ -192,26 +204,15 @@
   </select>
 </div>
         <div class="field">
-  <label for="f-settlement_account">Telebirr or bank account number <span class="req" aria-hidden="true">*</span></label>
-  
+  <label for="f-payout_account">Telebirr or bank account number</label>
+  <span class="hint">Optional today — a partner manager confirms it with you on the call.</span>
   <span class="" style="display:block">
     
-    <input id="f-settlement_account" name="settlement_account" type="text" required
+    <input id="f-payout_account" name="payout_account" type="text"
       placeholder="Account number we should pay into"
       
        />
   </span>
-</div>
-        <div class="field">
-  <label for="f-volume">Roughly how many delivery orders a day could you handle?</label>
-  
-  <select id="f-volume" name="volume">
-    <option value="">Choose…</option>
-    <option value="under10">Under 10</option>
-    <option value="10to30">10 to 30</option>
-    <option value="30to80">30 to 80</option>
-    <option value="over80">More than 80</option>
-  </select>
 </div>
         <div class="field">
   <label for="f-notes">Anything else we should know?</label>
@@ -222,9 +223,24 @@
 
       <fieldset>
         <legend>Before you submit</legend>
+        <label class="check" for="f-partner_consent">
+  <input id="f-partner_consent" type="checkbox" name="partner_consent" value="yes" data-must-check="true" />
+  <span>I am authorised to represent this restaurant, and I agree that Addis Bites may contact me about joining the network and may list the restaurant once terms are agreed.</span>
+</label>
+        <div class="field">
+  <label for="f-signed_name">Type your full name as a signature <span class="req" aria-hidden="true">*</span></label>
+  
+  <span class="" style="display:block">
+    
+    <input id="f-signed_name" name="signed_name" type="text" required
+      placeholder="The name of the person agreeing above"
+      
+       />
+  </span>
+</div>
         <label class="check" for="f-confirm_callonly">
   <input id="f-confirm_callonly" type="checkbox" name="confirm_callonly" value="yes" data-must-check="true" />
-  <span>I understand Addis Bites dispatches jobs to couriers and settles payment with the restaurant — no separate order tablet is needed.</span>
+  <span>I understand Addis Bites couriers order at my counter in person and we settle by Telebirr or CBE — no separate order tablet is needed.</span>
 </label>
         <label class="check" for="f-confirm_terms">
   <input id="f-confirm_terms" type="checkbox" name="confirm_terms" value="yes" data-must-check="true" />
@@ -244,6 +260,8 @@
   <p style="margin:26px 0 0;color:var(--text-2);font-size:14.5px">Prefer to talk first? Call <a class="link-u" href="tel:+251110000000">+251 11 000 0000</a> or email <a class="link-u" href="mailto:hello@orderaddisbites.com">hello@orderaddisbites.com</a>.</p>
 </main>
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>

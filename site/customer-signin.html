@@ -69,21 +69,19 @@
   <span class="lbl">Your details</span>
 </div>
       <h1>Sign in</h1>
-      <p class="sub">Enter the mobile number or email you signed up with.</p>
+      <p class="sub">Use the email address and password you signed up with.</p>
 
-      <form class="form" name="customer-signin" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- POST /api/auth/login → {email*, password*, expected_role, totp_code} -->
+      <form class="form" data-api-form="customer.login"
             data-success-url="attribution.html?after=customer-signin" novalidate>
-        <input type="hidden" name="form-name" value="customer-signin" />
-  <p hidden aria-hidden="true" style="display:none"><label>Do not fill this out: <input name="bot-field" /></label></p>
-        <input type="hidden" name="account_ref" data-account-ref value="" />
         <p class="form-status" data-form-status hidden></p>
         <div class="field">
-  <label for="f-phone_or_email">Mobile number or email <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-email">Email address <span class="req" aria-hidden="true">*</span></label>
   
   <span class="" style="display:block">
     
-    <input id="f-phone_or_email" name="phone_or_email" type="text" required
-      placeholder="+251 91 234 5678" autocomplete="username"
+    <input id="f-email" name="email" type="email" required
+      placeholder="you@example.com" autocomplete="username"
       
        />
   </span>
@@ -106,13 +104,15 @@
         <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
       </form>
 
-      <p class="foot-note"><a href="#">Forgot your password?</a></p>
+      <p class="foot-note"><a href="#" data-forgot>Forgot your password?</a></p>
       <p class="foot-note" style="margin-top:10px">New to Addis Bites? <a href="customer-signup.html">Create an account</a></p>
       <p class="foot-note" style="margin-top:10px;font-size:13.5px">Delivering for us? <a href="courier-signin.html">Courier sign in</a> · Dispatch desk? <a href="dispatch-signin.html">Console sign in</a></p>
     </div>
   </section>
 </main>
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>

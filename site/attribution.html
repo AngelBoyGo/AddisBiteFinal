@@ -52,12 +52,14 @@
   </header>
 
   <div class="form-card">
-    <form class="form" name="attribution" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+    <!-- Posted to POST /api/waitlist — the API's own interest-capture endpoint.
+         It is the one place the contract has an attribution field: heard_from
+         (plus referred_by and source_page). Required: type*, name*, phone*;
+         name and phone are filled from the signup step, so nobody is asked twice. -->
+    <form class="form" data-api-form="attribution"
           data-success-url="thanks.html" data-attribution-form novalidate>
-      <input type="hidden" name="form-name" value="attribution" />
-  <p hidden aria-hidden="true" style="display:none"><label>Do not fill this out: <input name="bot-field" /></label></p>
-      <input type="hidden" name="account_ref" data-account-ref value="" />
       <input type="hidden" name="signed_up_as" data-role-field value="" />
+      <input type="hidden" name="account_ref" data-account-ref value="" />
       <p class="form-status" data-form-status hidden></p>
 
       <fieldset>
@@ -170,11 +172,14 @@
       </fieldset>
 
       <button class="btn btn-primary btn-block btn-lg" type="submit">Finish</button>
-      <p class="hint" style="margin:0;text-align:center;font-size:13px">You can skip this — but it genuinely changes where we advertise next.</p>
+      <p style="margin:12px 0 0;text-align:center"><a class="link-u" href="thanks.html" style="font-size:14px">Skip this question</a></p>
+      <p class="hint" style="margin:8px 0 0;text-align:center;font-size:13px">Answering genuinely changes where we advertise next — but it is optional.</p>
     </form>
   </div>
 </main>
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>

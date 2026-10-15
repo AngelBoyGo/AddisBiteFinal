@@ -66,49 +66,51 @@
       <h1>Courier sign in</h1>
       <p class="sub">Use the mobile number you applied with. If your application is still being reviewed, we will say so here.</p>
 
-      <form class="form" name="courier-signin" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- POST /api/auth/phone-login → {phone*, code*, name, sub_city, intent}
+           Couriers sign in with a phone number + one-time code, not a password. -->
+      <form class="form" data-api-form="courier.login" data-otp
             data-success-url="attribution.html?after=courier-signin" novalidate>
-        <input type="hidden" name="form-name" value="courier-signin" />
-  <p hidden aria-hidden="true" style="display:none"><label>Do not fill this out: <input name="bot-field" /></label></p>
-        <input type="hidden" name="account_ref" data-account-ref value="" />
+        <input type="hidden" name="intent" value="driver" />
         <p class="form-status" data-form-status hidden></p>
         <div class="field">
-  <label for="f-phone_or_email">Mobile number or email <span class="req" aria-hidden="true">*</span></label>
-  
-  <span class="input-prefix" style="display:block">
+  <label for="f-phone">Mobile number <span class="req" aria-hidden="true">*</span></label>
+  <span class="hint">The number your application was approved under.</span>
+  <span class="input-prefix otp-row" style="display:block">
     <span class="pfx" aria-hidden="true">+251</span>
-    <input id="f-phone_or_email" name="phone_or_email" type="text" required
-      placeholder="91 234 5678" autocomplete="username"
-      
-       />
+    <input id="f-phone" name="phone" type="tel" required placeholder="91 234 5678"
+      autocomplete="tel" data-digits="9" inputmode="tel" />
+    <button class="btn btn-ghost" type="button" data-otp-send data-otp-phone="phone">Send code</button>
   </span>
 </div>
         <div class="field">
-  <label for="f-password">Password <span class="req" aria-hidden="true">*</span></label>
-  
+  <label for="f-code">One-time code <span class="req" aria-hidden="true">*</span></label>
+  <span class="hint">Tap “Send code”, then type the digits we text you.</span>
   <span class="" style="display:block">
     
-    <input id="f-password" name="password" type="password" required
-      placeholder="Your password" autocomplete="current-password"
-      
-       />
-  </span>
-</div>
-        <div class="field">
-  <label for="f-otp">One-time code</label>
-  <span class="hint">Optional. We ask for a code when you sign in from a new phone.</span>
-  <span class="" style="display:block">
-    
-    <input id="f-otp" name="otp" type="text"
-      placeholder="6 digits"
+    <input id="f-code" name="code" type="text" required
+      placeholder="6 digits" autocomplete="one-time-code"
        inputmode="numeric"
        />
   </span>
 </div>
-        <label class="check" for="f-remember">
-  <input id="f-remember" type="checkbox" name="remember" value="yes" />
-  <span>Keep me signed in on this phone</span>
-</label>
+        <div class="field">
+  <label for="f-sub_city">Sub-city you work in</label>
+  <span class="hint">Usually saved for you — check it is right.</span>
+  <select id="f-sub_city" name="sub_city">
+    <option value="">Choose…</option>
+    <option value="Addis Ketema">Addis Ketema</option>
+    <option value="Akaky Kaliti">Akaky Kaliti</option>
+    <option value="Arada">Arada</option>
+    <option value="Bole">Bole</option>
+    <option value="Gulele">Gulele</option>
+    <option value="Kirkos">Kirkos</option>
+    <option value="Kolfe Keranio">Kolfe Keranio</option>
+    <option value="Lideta">Lideta</option>
+    <option value="Lemi Kura">Lemi Kura</option>
+    <option value="Nifas Silk-Lafto">Nifas Silk-Lafto</option>
+    <option value="Yeka">Yeka</option>
+  </select>
+</div>
         <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
       </form>
 
@@ -119,6 +121,8 @@
   </section>
 </main>
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>

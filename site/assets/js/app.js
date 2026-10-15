@@ -323,110 +323,6 @@
     });
   }
 
-  /* ------------------------------------------------------------- 6. forms */
-  /* Netlify Forms: we submit via fetch so the visitor stays on the page.
-     Netlify needs the hidden form-name field; index.html declares a mirror
-     form so the build-time crawler registers every form name. */
-  function initForms() {
-    var forms = document.querySelectorAll('form[data-netlify="true"]');
-    for (var i = 0; i < forms.length; i++) wireForm(forms[i]);
-  }
-
-  function wireForm(form) {
-    var status = form.querySelector('[data-form-status]');
-    var submit = form.querySelector('[type="submit"]');
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      if (!validate(form)) return;
-
-      var data = new FormData(form);
-      /* carry the attribution answer across pages */
-      if (data.get('how_heard')) set(LS.attribution, String(data.get('how_heard')));
-
-      if (status) { status.className = 'form-status is-info'; status.textContent = 'Sending…'; status.hidden = false; }
-      if (submit) { submit.disabled = true; submit.setAttribute('aria-busy', 'true'); }
-
-      fetch('/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: encode(data)
-      })
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          var next = form.getAttribute('data-success-url');
-          if (status) { status.className = 'form-status is-ok'; status.textContent = 'Thanks — we have it. Redirecting…'; }
-          if (next) window.location.href = next;
-        })
-        .catch(function () {
-          /* Most likely cause in the sandbox preview: no Netlify runtime.
-             Fall back to a local confirmation so the flow is still testable. */
-          if (status) {
-            status.className = 'form-status is-warn';
-            status.textContent = 'We could not reach the form service just now. Please try again, or email hello@orderaddisbites.com.';
-          }
-          if (submit) { submit.disabled = false; submit.removeAttribute('aria-busy'); }
-        });
-    });
-    /* live-clear the error state */
-    var fields = form.querySelectorAll('input,select,textarea');
-    for (var f = 0; f < fields.length; f++) {
-      fields[f].addEventListener('input', function () {
-        if (this.getAttribute('aria-invalid') === 'true') {
-          this.setAttribute('aria-invalid', 'false');
-          var msg = this.parentNode.querySelector('.field-error');
-          if (msg) msg.remove();
-        }
-      });
-    }
-  }
-
-  function encode(data) {
-    var parts = [];
-    data.forEach(function (v, k) { parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v)); });
-    return parts.join('&');
-  }
-
-  function validate(form) {
-    var ok = true, firstBad = null;
-    var required = form.querySelectorAll('[required]');
-    for (var i = 0; i < required.length; i++) {
-      var el = required[i];
-      var bad = false;
-      if (el.type === 'checkbox') bad = !el.checked;
-      else if (el.type === 'radio') {
-        var group = form.querySelectorAll('input[name="' + el.name + '"]');
-        var picked = false;
-        for (var g = 0; g < group.length; g++) if (group[g].checked) picked = true;
-        bad = !picked;
-      } else bad = !String(el.value || '').trim();
-      if (!bad && el.type === 'email' && el.value) bad = !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(el.value);
-      if (!bad && el.dataset.digits) bad = String(el.value).replace(/\D/g, '').length < Number(el.dataset.digits);
-      if (bad) {
-        ok = false;
-        el.setAttribute('aria-invalid', 'true');
-        if (!firstBad) firstBad = el;
-      }
-    }
-    /* consent boxes that are not `required` but must be ticked */
-    var must = form.querySelectorAll('[data-must-check]');
-    for (var m = 0; m < must.length; m++) {
-      if (!must[m].checked) { ok = false; must[m].setAttribute('aria-invalid', 'true'); if (!firstBad) firstBad = must[m]; }
-    }
-    if (!ok && firstBad) {
-      var box = firstBad.closest('.field') || firstBad.parentNode;
-      if (box && !box.querySelector('.field-error')) {
-        var p = document.createElement('p');
-        p.className = 'field-error';
-        p.textContent = 'Please complete this field.';
-        box.appendChild(p);
-      }
-      firstBad.focus();
-      var st = form.querySelector('[data-form-status]');
-      if (st) { st.className = 'form-status is-warn'; st.textContent = 'Please fix the highlighted fields.'; st.hidden = false; }
-    }
-    return ok;
-  }
-
   /* ------------------------------------------------------------- 7. toasts */
   function toast(msg) {
     var host = document.getElementById('toast-host');
@@ -466,6 +362,25 @@
     if (LINKS.launched) return;
     var bar = document.getElementById('launch-bar');
     if (bar) bar.hidden = false;
+  }
+
+  /* Preview dry-run banner. Rendered only when the API client reports that it
+     is simulating submissions, so a tester can never mistake a simulated
+     "success" for a real account being created. */
+  function initDryRunBanner() {
+    var API = window.ABApi;
+    if (!API || !API.dryRun) return;
+    var bar = document.getElementById('dryrun-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'dryrun-bar';
+      bar.setAttribute('role', 'status');
+      bar.style.cssText = 'position:sticky;top:0;z-index:60;background:var(--gold);color:#3a2600;' +
+        'font:600 13.5px/1.45 Inter,sans-serif;padding:9px 16px;text-align:center';
+      bar.innerHTML = '<strong>Preview mode</strong> — the sign-up and sign-in forms are wired to the ' +
+        'real Addis Bites API, but on this preview origin submissions are <strong>simulated and not saved</strong>.';
+      document.body.insertBefore(bar, document.body.firstChild);
+    }
   }
 
   /* -------------------------------------------------- 8. attribution step */
@@ -560,10 +475,10 @@
     applyLinks();
     initDrawer();
     initAddress();
-    initForms();
     initAttribution();
     initThanks();
     initLaunch();
+    initDryRunBanner();
     var years = document.querySelectorAll('.js-year');
     for (var k = 0; k < years.length; k++) years[k].textContent = String(new Date().getFullYear());
   }

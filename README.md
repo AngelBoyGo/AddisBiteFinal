@@ -13,21 +13,29 @@ Ethiopian food delivery for Addis Ababa. This repository holds two things:
 
 Read this before assuming anything is "already built".
 
-| Surface | Front-end built? | Real sign-in? | Hosted? |
+| Surface | Front-end built? | Wired to the API? | Hosted? |
 |---|---|---|---|
 | Landing page (`site/index.html`) | ✅ Yes | n/a | Netlify (this deploy) |
-| Customer sign-up / sign-in | ✅ Yes | ❌ Form capture only | Netlify (this deploy) |
-| Courier sign-up / sign-in | ✅ Yes | ❌ Form capture only | Netlify (this deploy) |
-| Restaurant partner sign-up | ✅ Yes | ❌ Form capture only | Netlify (this deploy) |
-| Dispatch console sign-in | ✅ Yes | ❌ Form capture only | Netlify (this deploy) |
-| Operations Console (`ops-console/`) | ✅ Yes — clickable | ❌ **No login at all** | ❌ Not hosted yet |
+| Customer sign-up / sign-in | ✅ Yes | ✅ `POST /api/auth/register` · `/api/auth/login` | Netlify (this deploy) |
+| Courier sign-up / sign-in | ✅ Yes | ✅ `/api/auth/driver-phone-signup` · `/api/auth/phone-login` | Netlify (this deploy) |
+| Restaurant partner sign-up | ✅ Yes | ✅ `POST /api/public/listing-intent` | Netlify (this deploy) |
+| Dispatch console sign-in | ✅ Yes | ✅ `POST /api/auth/operator-login` | Netlify (this deploy) |
+| Attribution step | ✅ Yes | ✅ `POST /api/waitlist` | Netlify (this deploy) |
+| Operations Console (`ops-console/`) | ✅ Yes — clickable | ❌ mock data, own store | ❌ Not hosted yet |
 | Customer app (browse / cart / track) | ⚠️ Design prototype only | ❌ | ❌ |
 | Courier app (go online / accept job) | ⚠️ Design prototype only | ❌ | ❌ |
-| Admin console | ⚠️ Design prototype only | ❌ | ❌ |
+| Admin dashboard (`ops-admin/`) | ✅ Yes — clickable | ❌ mock data, own store | ❌ Not hosted yet |
 
-**There is no authentication anywhere in this project yet.** The forms on this site
-collect and store submissions in Netlify Forms. They do not create accounts, and
-there is no database behind them. Nothing can be "logged into".
+**A real backend exists and every public form now posts to it.** The API is a
+FastAPI service at `https://api.orderaddisbites.com` (Render; mirrors at
+`https://api-orderaddisbites.onrender.com`) backed by real PostgreSQL, exposing
+528 documented endpoints. The sign-up/sign-in forms were previously filing
+submissions into Netlify Forms — a void nobody read; that sink has been removed
+entirely and replaced with the live contract below.
+
+The Operations Console and Admin dashboard remain **clickable GUIs on mock
+data** — they are the interaction contract for screens that have no backing
+endpoints we have wired yet.
 
 ### What the Operations Console actually is
 
@@ -42,9 +50,9 @@ system, not the real system.
 
 ## 2. The public site (`site/`)
 
-Static multi-page HTML. No framework, no runtime build — deliberately, because
-**Netlify Forms registers form definitions by crawling the HTML at deploy time**
-and cannot see anything a JavaScript SPA renders. Every form here is real markup.
+Static multi-page HTML. No framework, no runtime build — deliberately, so every
+form is real, crawlable markup and the pages are readable without a build step.
+Submissions are sent to the live API by `assets/js/ab-api.js` + `ab-forms.js`.
 
 ### Pages
 
@@ -75,10 +83,9 @@ This is the point of the step: it tells you which channel actually drove the
 sign-up, so ad spend follows evidence instead of guesswork. The answer is also
 written to `localStorage` so a returning visitor is never asked twice.
 
-Submissions arrive in the Netlify dashboard as separate forms:
-`customer-signup`, `customer-signin`, `courier-signup`, `courier-signin`,
-`partner-signup`, `attribution`. **Attribution is its own form name on purpose** —
-you can count conversion by channel without joining tables.
+Submissions are posted to `POST /api/waitlist` with a `heard_from` field, so
+attribution lands on the same record store as every other lead and can be counted
+by channel with a single query — no joining of separate form tables.
 
 ### Design system
 
@@ -178,10 +185,27 @@ cd ops-console && npm install && npm run build
 ```
 
 The `site/*.html` auth pages are **generated** by `tools/build-pages.mjs` and are
-committed on purpose, because Netlify Forms must crawl them at deploy time and
-the repo should be readable without running a build. Edit the generator, not the
-generated files — otherwise your change is lost on the next run.
-`site/index.html` is hand-written and is not generated.
+committed on purpose, so the repo is readable and deployable without running a
+build. Edit the generator, not the generated files — otherwise your change is
+lost on the next run. `site/index.html` is hand-written and is not generated.
+
+### Verifying the wiring
+
+Three suites run headless (no browser required) and are the gate before any
+deploy:
+
+```bash
+node tools/build-pages.mjs       # regenerate the 8 auth/partner pages
+node tools/verify-contract.mjs   # every form payload vs the live OpenAPI schema
+node tools/test-funnel.mjs       # the sign-up / sign-in flow, driven for real
+node tools/smoke-test.mjs        # console + admin still mount, store invariants
+tools/assemble-preview.sh        # build the single-origin manual-test preview
+```
+
+`verify-contract.mjs` runs the **same** `ABApi.zip` + `ABApi.build` the browser
+runs, then validates the result against `tools/openapi.snapshot.json` (a snapshot
+of the live spec) — so a payload that would be rejected by FastAPI fails here in
+CI instead of silently in front of a customer.
 
 ### Deploying
 
@@ -193,26 +217,77 @@ token-rotation warning.
 
 ## 7. Data architecture
 
-There is **no database in this project yet**. Submissions from the six forms are
-stored by Netlify Forms and are visible in the Netlify dashboard; they can be
-exported or forwarded to a webhook. The Operations Console's data is mock data
-in the browser.
+**Every public form writes to the real API.** There is no server-side database in
+*this* repo — the system of record is the existing Addis Bites PostgreSQL
+instance behind the FastAPI service. The Operations Console and Admin dashboard
+data is mock data in the browser, seeded from `ab-seed.js`.
 
-When the real backend is built, the platform spec
-(`docs/REQUIREMENTS-unified.md` in the design handoff) calls for one API module
-with integer ETB amounts, a double-entry ledger, and ID prefixes — and a
-Cloudflare D1 (or equivalent) store behind it.
+### The wired contract
+
+| Form | Endpoint | Auth shape |
+|---|---|---|
+| Customer sign-up | `POST /api/auth/register` | email + password (+ name, phone, role) |
+| Customer sign-in | `POST /api/auth/login` | email + password |
+| Courier sign-up | `POST /api/auth/driver-phone-signup` | phone + **OTP** |
+| Courier sign-in | `POST /api/auth/phone-login` | phone + **OTP** |
+| Dispatch sign-in | `POST /api/auth/operator-login` | username + password |
+| Restaurant partner | `POST /api/public/listing-intent` | consent + signed name |
+| Attribution / waitlist | `POST /api/waitlist` | name + phone + `heard_from` |
+
+OTP is requested by `POST /api/auth/send-otp?phone=…` — **the phone goes in the
+query string, not the body.** Customer identity is email-based and courier
+identity is phone-based; that asymmetry was taken from the existing backend on
+purpose, so credentials already in the database keep working.
+
+The contract is not invented from scratch: `tools/openapi.snapshot.json` is the
+live OpenAPI document, and `tools/verify-contract.mjs` fails the build if a form
+drifts from it.
 
 ---
 
-## 8. Not implemented yet
+## 8. Before you can open sign-ups for real
 
-- Real authentication (no accounts exist — the forms are lead capture)
-- Ordering, cart, checkout, courier tracking
-- The customer, courier and admin applications as running software
-- A database, API, or payment-rail integration
-- Notifications (email/SMS) on form submission
-- Tests of any kind
+These are the remaining gates. They are **configuration and platform work, not
+code** — the front end is wired and verified against the live contract.
 
-Nothing in section 8 is deployed or reachable. The single place to record the
-truth as these land is this section and `links.config.js`.
+| # | Blocker | Why it matters |
+|---|---|---|
+| 1 | **CORS allowlist** | The API's `access-control-allow-*` headers currently name only `orderaddisbites.com` / `www.` / `admin.`. Any other origin — including a staging host — is blocked by the **browser** before the request leaves the page. Nothing signs up until this origin is added. |
+| 2 | **SMS / OTP provider funded** | Courier sign-up and courier sign-in are phone + OTP. If the provider is unfunded or unconfigured, those two flows cannot complete regardless of the front end. |
+| 3 | **`role` value confirmed** | `/api/auth/register` accepts a `role`, but no enum is published. The site currently sends `customer`. Confirm that is the exact accepted value. |
+| 4 | **Lock down the docs surface** | `/openapi.json`, `/docs`, `/redoc` and `/api/health` are all public, and `/api/health` leaks ops configuration unauthenticated. Restrict before launch. |
+| 5 | **Cookie / SameSite** | Sessions are cookies and the API is cross-origin. `SameSite=Lax` cookies are not sent cross-site. Serving the API at an `api.` subdomain of the app's own domain keeps it same-site and avoids the problem. |
+
+## 9. Not implemented yet
+
+- The customer app (browse / cart / checkout / track) as running software
+- The courier app (go online / accept job) as running software
+- Operations Console and Admin dashboard wiring to real endpoints
+- Payment-rail integration (Telebirr / CBE verification) in this repo
+- Notification emails on sign-up
+
+Nothing in section 9 is deployed or reachable beyond the manual-test preview.
+The single place to record the truth as these land is this section and
+`links.config.js`.
+
+---
+
+## 10. Preview (manual test)
+
+`tools/assemble-preview.sh` builds one directory served from one origin so the
+whole product can be clicked through before anything is swapped in production:
+
+| Path | What |
+|---|---|
+| `/` | landing page + every auth/partner/attribution page |
+| `/console/` | Operations Console |
+| `/admin/` | Admin dashboard |
+
+> **The preview runs in dry-run mode.** Because the preview origin is not yet in
+the API's CORS allowlist, `assemble-preview.sh` flips `dryRun` to `true` **in the
+> preview copy only** — submissions are simulated and a sticky gold banner says
+> so. `site/assets/js/links.config.js` keeps `dryRun: false`, so production is
+> untouched. The banner disappears the moment a real deploy is made from source.
+
+Nothing in this repo deploys to production. `www.`, `admin.` and `command.` are
+untouched pending manual sign-off on the preview.

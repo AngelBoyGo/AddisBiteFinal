@@ -66,17 +66,18 @@
       <h1>Console sign in</h1>
       <p class="sub">Dispatch and finance staff only. Accounts are issued by an administrator — there is no self sign-up for this surface.</p>
 
-      <form class="form" name="dispatch-signin" method="POST" data-netlify="true" netlify-honeypot="bot-field" novalidate>
-        <input type="hidden" name="form-name" value="dispatch-signin" />
-  <p hidden aria-hidden="true" style="display:none"><label>Do not fill this out: <input name="bot-field" /></label></p>
+      <!-- POST /api/auth/operator-login → {username*, password*}.
+           Staff sign in with a USERNAME, not an email — matching the live
+           /console/login page so existing operator accounts keep working. -->
+      <form class="form" data-api-form="operator.login" novalidate>
         <p class="form-status" data-form-status hidden></p>
         <div class="field">
-  <label for="f-staff_email">Work email <span class="req" aria-hidden="true">*</span></label>
-  
+  <label for="f-username">Username <span class="req" aria-hidden="true">*</span></label>
+  <span class="hint">Issued by an administrator. This is not your email address.</span>
   <span class="" style="display:block">
     
-    <input id="f-staff_email" name="staff_email" type="email" required
-      placeholder="you@orderaddisbites.com" autocomplete="username"
+    <input id="f-username" name="username" type="text" required
+      placeholder="yordanos" autocomplete="username"
       
        />
   </span>
@@ -92,17 +93,6 @@
        />
   </span>
 </div>
-        <div class="field">
-  <label for="f-staff_code">Staff code</label>
-  <span class="hint">The second factor your administrator issued with your account.</span>
-  <span class="" style="display:block">
-    
-    <input id="f-staff_code" name="staff_code" type="text"
-      placeholder="6 digits"
-       inputmode="numeric"
-       />
-  </span>
-</div>
         <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in to console</button>
       </form>
 
@@ -115,6 +105,8 @@
   </section>
 </main>
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>

@@ -72,48 +72,62 @@
       <h1>Sign up to deliver</h1>
       <p class="sub">Fill this in today. A dispatcher reviews every application by hand, then we will contact you to collect your ID and licence.</p>
 
-      <form class="form" name="courier-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- Couriers are PHONE + ONE-TIME CODE on this API:
+           POST /api/auth/send-otp?phone=  then
+           POST /api/auth/driver-phone-signup {phone*, code*, name*, ...}
+           Every field below exists in that schema, so nothing typed here is
+           silently discarded. ID / licence / payout details are collected by a
+           dispatcher on the phone — exactly how the business runs today. -->
+      <form class="form" data-api-form="courier.register" data-otp
             data-success-url="attribution.html?after=courier-signup" novalidate>
-        <input type="hidden" name="form-name" value="courier-signup" />
-  <p hidden aria-hidden="true" style="display:none"><label>Do not fill this out: <input name="bot-field" /></label></p>
         <input type="hidden" name="account_ref" data-account-ref value="" />
         <p class="form-status" data-form-status hidden></p>
 
         <fieldset>
           <legend>About you</legend>
           <div class="field">
-  <label for="f-full_name">Full name <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-name">Full name <span class="req" aria-hidden="true">*</span></label>
   
   <span class="" style="display:block">
     
-    <input id="f-full_name" name="full_name" type="text" required
+    <input id="f-name" name="name" type="text" required
       placeholder="Dawit Haile" autocomplete="name"
       
        />
   </span>
 </div>
-          <div class="field-row"><div class="field">
+          <div class="field">
   <label for="f-phone">Mobile number <span class="req" aria-hidden="true">*</span></label>
-  
-  <span class="input-prefix" style="display:block">
+  <span class="hint">We text a code to this number. It also becomes your sign-in.</span>
+  <span class="input-prefix otp-row" style="display:block">
     <span class="pfx" aria-hidden="true">+251</span>
-    <input id="f-phone" name="phone" type="tel" required
-      placeholder="91 234 5678"
-      data-digits="9" inputmode="tel"
+    <input id="f-phone" name="phone" type="tel" required placeholder="91 234 5678"
+      autocomplete="tel" data-digits="9" inputmode="tel" />
+    <button class="btn btn-ghost" type="button" data-otp-send data-otp-phone="phone">Send code</button>
+  </span>
+</div>
+          <div class="field">
+  <label for="f-code">One-time code <span class="req" aria-hidden="true">*</span></label>
+  <span class="hint">Tap “Send code”, then type the digits we text you.</span>
+  <span class="" style="display:block">
+    
+    <input id="f-code" name="code" type="text" required
+      placeholder="6 digits" autocomplete="one-time-code"
+       inputmode="numeric"
        />
   </span>
 </div>
-  <div class="field">
-  <label for="f-email">Email address <span class="req" aria-hidden="true">*</span></label>
-  
+          <div class="field">
+  <label for="f-email">Email address</label>
+  <span class="hint">Optional — but it is how payout statements reach you.</span>
   <span class="" style="display:block">
     
-    <input id="f-email" name="email" type="email" required
+    <input id="f-email" name="email" type="text"
       placeholder="you@example.com" autocomplete="email"
       
        />
   </span>
-</div></div>
+</div>
           <div class="field">
   <label for="f-sub_city">Sub-city you want to work in <span class="req" aria-hidden="true">*</span></label>
   <span class="hint">You will only be offered jobs inside this area.</span>
@@ -132,6 +146,15 @@
     <option value="Yeka">Yeka</option>
   </select>
 </div>
+          <div class="field">
+  <label for="f-telecom_provider">Which network is that number on?</label>
+  <span class="hint">Helps keep code delivery reliable.</span>
+  <select id="f-telecom_provider" name="telecom_provider">
+    <option value="">Choose…</option>
+    <option value="ethio">Ethio Telecom</option>
+    <option value="safaricom">Safaricom</option>
+  </select>
+</div>
         </fieldset>
 
         <fieldset>
@@ -147,64 +170,59 @@
     <option value="On foot">On foot (short distances)</option>
   </select>
 </div>
-          <div class="field-row"><div class="field">
-  <label for="f-plate">Plate number</label>
-  <span class="hint">Needed for motorcycle or car.</span>
-  <span class="" style="display:block">
-    
-    <input id="f-plate" name="plate" type="text"
-      placeholder="A 12345"
-      
-       />
-  </span>
+          <div class="field">
+  <label for="f-license_valid">Do you hold a valid driving licence?</label>
+  <span class="hint">A dispatcher checks the original document before your first delivery.</span>
+  <select id="f-license_valid" name="license_valid">
+    <option value="">Choose…</option>
+    <option value="yes">Yes, currently valid</option>
+    <option value="no">No</option>
+    <option value="not-applicable">Not needed for what I ride</option>
+  </select>
 </div>
-  <div class="field">
-  <label for="f-licence_no">Driver's licence number</label>
-  
-  <span class="" style="display:block">
-    
-    <input id="f-licence_no" name="licence_no" type="text"
-      placeholder="Optional for bicycle or on foot"
-      
-       />
-  </span>
-</div></div>
         </fieldset>
 
         <fieldset>
-          <legend>Verification &amp; payouts</legend>
+          <legend>When can you work?</legend>
           <div class="field">
-  <label for="f-national_id">National ID (Fayda) number <span class="req" aria-hidden="true">*</span></label>
-  <span class="hint">We verify this before your first delivery. It is never shown to customers.</span>
-  <span class="" style="display:block">
-    
-    <input id="f-national_id" name="national_id" type="text" required
-      placeholder="16 digits"
-      
-       />
-  </span>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin-bottom:8px">Days you can normally go online</span>
+  
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px">
+    <label class="check"><input type="checkbox" name="days_available" value="mon" /><span>Mon</span></label>
+    <label class="check"><input type="checkbox" name="days_available" value="tue" /><span>Tue</span></label>
+    <label class="check"><input type="checkbox" name="days_available" value="wed" /><span>Wed</span></label>
+    <label class="check"><input type="checkbox" name="days_available" value="thu" /><span>Thu</span></label>
+    <label class="check"><input type="checkbox" name="days_available" value="fri" /><span>Fri</span></label>
+    <label class="check"><input type="checkbox" name="days_available" value="sat" /><span>Sat</span></label>
+    <label class="check"><input type="checkbox" name="days_available" value="sun" /><span>Sun</span></label>
+  </div>
 </div>
           <div class="field">
-  <label for="f-payout_method">How should we pay you? <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-peak_window">Which rush suits you best?</label>
   
-  <select id="f-payout_method" name="payout_method" required>
+  <select id="f-peak_window" name="peak_window">
     <option value="">Choose…</option>
-    <option value="Telebirr">Telebirr mobile money</option>
-    <option value="CBE">CBE bank transfer</option>
-    <option value="Other bank">Another bank</option>
+    <option value="lunch">Lunch — 11:00 to 14:00</option>
+    <option value="dinner">Dinner — 17:00 to 21:00</option>
+    <option value="both">Both</option>
+    <option value="flexible">Flexible</option>
   </select>
 </div>
           <div class="field">
-  <label for="f-payout_account">Payout account number <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-start_availability">When can you start?</label>
   
-  <span class="" style="display:block">
-    
-    <input id="f-payout_account" name="payout_account" type="text" required
-      placeholder="The number we should send your earnings to"
-      
-       />
-  </span>
+  <select id="f-start_availability" name="start_availability">
+    <option value="">Choose…</option>
+    <option value="immediately">Immediately</option>
+    <option value="this-week">This week</option>
+    <option value="this-month">This month</option>
+    <option value="exploring">Just exploring for now</option>
+  </select>
 </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Emergency contact &amp; referrals</legend>
           <div class="field-row"><div class="field">
   <label for="f-emergency_name">Emergency contact name <span class="req" aria-hidden="true">*</span></label>
   
@@ -228,27 +246,24 @@
   </span>
 </div></div>
           <div class="field">
-  <label for="f-experience">How much delivery experience do you have?</label>
-  
-  <select id="f-experience" name="experience">
-    <option value="">Choose…</option>
-    <option value="none">This is my first time</option>
-    <option value="under1">Under a year</option>
-    <option value="1to3">1 to 3 years</option>
-    <option value="over3">More than 3 years</option>
-  </select>
+  <label for="f-referral_code">Were you referred by an existing courier?</label>
+  <span class="hint">It earns them the referral bonus and speeds up your application.</span>
+  <span class="" style="display:block">
+    
+    <input id="f-referral_code" name="referral_code" type="text"
+      placeholder="Their name or code"
+      
+       />
+  </span>
 </div>
+          <p class="hint" style="margin:16px 0 0">A dispatcher collects your ID, licence and payout account when they call — so there is nothing to photograph or upload today.</p>
         </fieldset>
 
         <fieldset>
           <legend>Before you submit</legend>
-          <label class="check" for="f-confirm_age">
-  <input id="f-confirm_age" type="checkbox" name="confirm_age" value="yes" data-must-check="true" />
-  <span>I am 18 or older and I hold a valid national ID.</span>
-</label>
-          <label class="check" for="f-confirm_docs">
-  <input id="f-confirm_docs" type="checkbox" name="confirm_docs" value="yes" data-must-check="true" />
-  <span>I understand a dispatcher will contact me to collect my ID, licence and vehicle papers.</span>
+          <label class="check" for="f-background_check_accepted">
+  <input id="f-background_check_accepted" type="checkbox" name="background_check_accepted" value="yes" data-must-check="true" />
+  <span>I am 18 or older, I agree to a background check, and I understand a dispatcher will contact me to collect my ID, licence and vehicle papers.</span>
 </label>
           <label class="check" for="f-confirm_terms">
   <input id="f-confirm_terms" type="checkbox" name="confirm_terms" value="yes" data-must-check="true" />
@@ -269,6 +284,8 @@
   </section>
 </main>
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>

@@ -30,8 +30,14 @@ p = pathlib.Path('preview/assets/js/links.config.js')
 s = p.read_text()
 s = s.replace("  console:  '',", "  console:  '/console/',")
 s = s.replace("  admin:    '',", "  admin:    '/admin/',")
+# PREVIEW ONLY: simulate form submissions. The API's CORS allowlist does not
+# include this origin yet, so a real POST is blocked by the browser before it
+# leaves the page -- which would make the whole signup funnel untestable.
+# site/assets/js/links.config.js keeps dryRun:false, so production is untouched.
+s = s.replace("    dryRun: false,", "    dryRun: true,")
 p.write_text(s)
-print('   links.config.js → console=/console/  admin=/admin/')
+assert 'dryRun: true' in s, 'dry-run patch did not apply'
+print('   links.config.js → console=/console/  admin=/admin/  dryRun=true (preview only)')
 PY
 
 echo "▸ Operations Console        →  preview/console/"

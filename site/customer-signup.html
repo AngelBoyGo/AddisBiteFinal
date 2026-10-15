@@ -71,18 +71,20 @@
       <h1>Create your account</h1>
       <p class="sub">Two minutes now, dinner sorted later. We only ask for what we actually need to deliver to you.</p>
 
-      <form class="form" name="customer-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- Customer accounts are EMAIL + PASSWORD on this API
+           (POST /api/auth/register → email*, password*, name, phone, role).
+           The live site already uses that contract, so accounts created there
+           keep working here. -->
+      <form class="form" data-api-form="customer.register"
             data-success-url="attribution.html?after=customer-signup" novalidate>
-        <input type="hidden" name="form-name" value="customer-signup" />
-  <p hidden aria-hidden="true" style="display:none"><label>Do not fill this out: <input name="bot-field" /></label></p>
         <input type="hidden" name="account_ref" data-account-ref value="" />
         <p class="form-status" data-form-status hidden></p>
         <div class="field">
-  <label for="f-full_name">Full name <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-name">Full name <span class="req" aria-hidden="true">*</span></label>
   
   <span class="" style="display:block">
     
-    <input id="f-full_name" name="full_name" type="text" required
+    <input id="f-name" name="name" type="text" required
       placeholder="Selam Bekele" autocomplete="name"
       
        />
@@ -90,7 +92,7 @@
 </div>
         <div class="field">
   <label for="f-phone">Mobile number <span class="req" aria-hidden="true">*</span></label>
-  <span class="hint">We use this to reach you about your order. It is never shown to other customers.</span>
+  <span class="hint">Your courier calls this number. It is never shown to other customers.</span>
   <span class="input-prefix" style="display:block">
     <span class="pfx" aria-hidden="true">+251</span>
     <input id="f-phone" name="phone" type="tel" required
@@ -101,7 +103,7 @@
 </div>
         <div class="field">
   <label for="f-email">Email address <span class="req" aria-hidden="true">*</span></label>
-  <span class="hint">Your confirmation and your order receipts go here.</span>
+  <span class="hint">You sign in with this address, so use one you actually check.</span>
   <span class="" style="display:block">
     
     <input id="f-email" name="email" type="email" required
@@ -111,8 +113,19 @@
   </span>
 </div>
         <div class="field">
-  <label for="f-sub_city">Your sub-city <span class="req" aria-hidden="true">*</span></label>
+  <label for="f-password">Create a password <span class="req" aria-hidden="true">*</span></label>
   
+  <span class="" style="display:block">
+    
+    <input id="f-password" name="password" type="password" required
+      placeholder="At least 8 characters" autocomplete="new-password"
+       minlength="8"
+       />
+  </span>
+</div>
+        <div class="field">
+  <label for="f-sub_city">Your sub-city <span class="req" aria-hidden="true">*</span></label>
+  <span class="hint">We use it to show kitchens that can actually reach you in time.</span>
   <select id="f-sub_city" name="sub_city" required>
     <option value="">Choose…</option>
     <option value="Addis Ketema">Addis Ketema</option>
@@ -130,22 +143,11 @@
 </div>
         <div class="field">
   <label for="f-address_detail">Street, building or landmark</label>
-  <span class="hint">Optional now — you can add exact addresses later. Landmarks help your courier a lot.</span>
+  <span class="hint">Optional now — exact addresses are saved in your account later. Landmarks help your courier a lot.</span>
   <span class="" style="display:block">
     
     <input id="f-address_detail" name="address_detail" type="text"
       placeholder="Bole, near Edna Mall, 3rd floor"
-      
-       />
-  </span>
-</div>
-        <div class="field">
-  <label for="f-password">Create a password <span class="req" aria-hidden="true">*</span></label>
-  
-  <span class="" style="display:block">
-    
-    <input id="f-password" name="password" type="password" required
-      placeholder="At least 8 characters" autocomplete="new-password"
       
        />
   </span>
@@ -167,6 +169,8 @@
   </section>
 </main>
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>

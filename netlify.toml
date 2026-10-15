@@ -5,9 +5,12 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Netlify Forms: submissions land in the Netlify dashboard under Forms.
-# No notification emails are configured here on purpose — the partner team
-# wires those up in the UI once the account is verified.
+# ---------------------------------------------------------------------------
+# Every form on this site posts to the real Addis Bites API (see
+# site/assets/js/ab-api.js). There are no Netlify Forms on this site any more:
+# a Netlify Form only files a submission in a dashboard nobody reads, whereas
+# real accounts must be created by the API.
+# ---------------------------------------------------------------------------
 
 [[headers]]
   for = "/*"
@@ -16,14 +19,25 @@
     X-Frame-Options = "SAMEORIGIN"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(self), camera=(), microphone=()"
+    # connect-src MUST list the API origin or the browser blocks every signup
+    # call before it leaves the page (and it looks identical to a CORS failure).
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.orderaddisbites.com https://api-orderaddisbites.onrender.com; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 
 [[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# ===========================================================================
+#  Route mirrors.
+#  These reproduce the EXACT paths the live site already uses, so no printed
+#  URL, QR code, Telegram link or bookmark breaks at cutover. Verified against
+#  the live deployment's route list.
+# ===========================================================================
+
+# --- customer ---
 [[redirects]]
-  from = "/signin"
+  from = "/login"
   to = "/customer-signin.html"
   status = 301
 
@@ -33,8 +47,24 @@
   status = 301
 
 [[redirects]]
-  from = "/partner"
-  to = "/partner-signup.html"
+  from = "/signin"
+  to = "/customer-signin.html"
+  status = 301
+
+# --- courier / driver ---
+[[redirects]]
+  from = "/driver/signup"
+  to = "/courier-signup.html"
+  status = 301
+
+[[redirects]]
+  from = "/driver/login"
+  to = "/courier-signin.html"
+  status = 301
+
+[[redirects]]
+  from = "/for-drivers"
+  to = "/courier-signup.html"
   status = 301
 
 [[redirects]]
@@ -43,11 +73,33 @@
   status = 301
 
 [[redirects]]
+  from = "/deliver"
+  to = "/courier-signup.html"
+  status = 301
+
+# --- restaurant partners ---
+[[redirects]]
+  from = "/for-restaurants"
+  to = "/partner-signup.html"
+  status = 301
+
+[[redirects]]
+  from = "/partner"
+  to = "/partner-signup.html"
+  status = 301
+
+# --- staff ---
+[[redirects]]
+  from = "/console/login"
+  to = "/dispatch-signin.html"
+  status = 301
+
+[[redirects]]
   from = "/console"
   to = "/dispatch-signin.html"
   status = 301
 
 [[redirects]]
-  from = "/deliver"
-  to = "/courier-signup.html"
+  from = "/outreach/login"
+  to = "/dispatch-signin.html"
   status = 301

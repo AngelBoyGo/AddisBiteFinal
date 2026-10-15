@@ -49,7 +49,9 @@ function shell({ title, desc, body, og = 'assets/img/hero.jpg' }) {
 ${SPRITE}
 ${body}
 <script src="assets/js/links.config.js"></script>
+<script src="assets/js/ab-api.js"></script>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/ab-forms.js"></script>
 </body>
 </html>
 `;
@@ -106,7 +108,7 @@ function aside({ img, title, copy, points, pointsHeading }) {
 /* ------------------------------------------------------------ form fields */
 const req = '<span class="req" aria-hidden="true">*</span>';
 
-function fText({ name, label, type = 'text', required = false, ph = '', hint = '', autocomplete = '', digits = 0, prefix = '', inputmode = '', value = '' }) {
+function fText({ name, label, type = 'text', required = false, ph = '', hint = '', autocomplete = '', digits = 0, prefix = '', inputmode = '', value = '', minlength = 0 }) {
   const id = `f-${name}`;
   return `<div class="field">
   <label for="${id}">${label}${required ? ' ' + req : ''}</label>
@@ -115,7 +117,7 @@ function fText({ name, label, type = 'text', required = false, ph = '', hint = '
     ${prefix ? `<span class="pfx" aria-hidden="true">${prefix}</span>` : ''}
     <input id="${id}" name="${name}" type="${type}"${required ? ' required' : ''}
       ${ph ? `placeholder="${ph}"` : ''}${autocomplete ? ` autocomplete="${autocomplete}"` : ''}
-      ${digits ? `data-digits="${digits}"` : ''}${inputmode ? ` inputmode="${inputmode}"` : ''}
+      ${digits ? `data-digits="${digits}"` : ''}${inputmode ? ` inputmode="${inputmode}"` : ''}${minlength ? ` minlength="${minlength}"` : ''}
       ${value ? `value="${value}"` : ''} />
   </span>
 </div>`;
@@ -151,6 +153,45 @@ function fCheck({ name, label, must = false, value = 'yes' }) {
 }
 
 function fRow(...items) { return `<div class="field-row">${items.join('\n  ')}</div>`; }
+
+/* Phone field with a "Send code" button, for the OTP (courier) flows.
+   The button is wired by ab-forms.js via data-otp-send, and the code is then
+   submitted with the rest of the form in the SAME call (the API takes the code
+   alongside the profile fields on driver-phone-signup / phone-login). */
+function phoneOtp({ name = 'phone', label = 'Mobile number', required = true, hint = '' }) {
+  const id = `f-${name}`;
+  return `<div class="field">
+  <label for="${id}">${label}${required ? ' ' + req : ''}</label>
+  ${hint ? `<span class="hint">${hint}</span>` : ''}
+  <span class="input-prefix otp-row" style="display:block">
+    <span class="pfx" aria-hidden="true">+251</span>
+    <input id="${id}" name="${name}" type="tel"${required ? ' required' : ''} placeholder="91 234 5678"
+      autocomplete="tel" data-digits="9" inputmode="tel" />
+    <button class="btn btn-ghost" type="button" data-otp-send data-otp-phone="${name}">Send code</button>
+  </span>
+</div>`;
+}
+
+/* One-time-code field shown beside a phoneOtp field. */
+function fCode() {
+  return fText({
+    name: 'code', label: 'One-time code', required: true, ph: '6 digits',
+    inputmode: 'numeric', autocomplete: 'one-time-code',
+    hint: 'Tap “Send code”, then type the digits we text you.'
+  });
+}
+
+/* A group of checkboxes sharing one name. ABApi.zip() turns repeated names into
+   a JSON array, which is what the courier's `days_available` field expects. */
+function fChecks({ name, legend, options, hint = '' }) {
+  return `<div class="field">
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin-bottom:8px">${legend}</span>
+  ${hint ? `<span class="hint">${hint}</span>` : ''}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px">
+    ${options.map(([v, l]) => `<label class="check"><input type="checkbox" name="${name}" value="${v}" /><span>${l}</span></label>`).join('\n    ')}
+  </div>
+</div>`;
+}
 
 function hidden(pairs) {
   return Object.entries(pairs).map(([k, v]) => `<input type="hidden" name="${k}" value="${v}" />`).join('\n  ');
@@ -203,17 +244,20 @@ const customerSignup = shell({
       <h1>Create your account</h1>
       <p class="sub">Two minutes now, dinner sorted later. We only ask for what we actually need to deliver to you.</p>
 
-      <form class="form" name="customer-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- Customer accounts are EMAIL + PASSWORD on this API
+           (POST /api/auth/register → email*, password*, name, phone, role).
+           The live site already uses that contract, so accounts created there
+           keep working here. -->
+      <form class="form" data-api-form="customer.register"
             data-success-url="attribution.html?after=customer-signup" novalidate>
-        ${netlify('customer-signup')}
         <input type="hidden" name="account_ref" data-account-ref value="" />
         ${status()}
-        ${fText({ name: 'full_name', label: 'Full name', required: true, ph: 'Selam Bekele', autocomplete: 'name' })}
-        ${fText({ name: 'phone', label: 'Mobile number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678', autocomplete: 'tel', digits: 9, inputmode: 'tel', hint: 'We use this to reach you about your order. It is never shown to other customers.' })}
-        ${fText({ name: 'email', label: 'Email address', type: 'email', required: true, ph: 'you@example.com', autocomplete: 'email', hint: 'Your confirmation and your order receipts go here.' })}
-        ${fSelect({ name: 'sub_city', label: 'Your sub-city', required: true, options: SUB_CITIES })}
-        ${fText({ name: 'address_detail', label: 'Street, building or landmark', ph: 'Bole, near Edna Mall, 3rd floor', hint: 'Optional now — you can add exact addresses later. Landmarks help your courier a lot.' })}
+        ${fText({ name: 'name', label: 'Full name', required: true, ph: 'Selam Bekele', autocomplete: 'name' })}
+        ${fText({ name: 'phone', label: 'Mobile number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678', autocomplete: 'tel', digits: 9, inputmode: 'tel', hint: 'Your courier calls this number. It is never shown to other customers.' })}
+        ${fText({ name: 'email', label: 'Email address', type: 'email', required: true, ph: 'you@example.com', autocomplete: 'email', hint: 'You sign in with this address, so use one you actually check.' })}
         ${fText({ name: 'password', label: 'Create a password', type: 'password', required: true, ph: 'At least 8 characters', autocomplete: 'new-password', minlength: 8 })}
+        ${fSelect({ name: 'sub_city', label: 'Your sub-city', required: true, options: SUB_CITIES, hint: 'We use it to show kitchens that can actually reach you in time.' })}
+        ${fText({ name: 'address_detail', label: 'Street, building or landmark', ph: 'Bole, near Edna Mall, 3rd floor', hint: 'Optional now — exact addresses are saved in your account later. Landmarks help your courier a lot.' })}
         ${fCheck({ name: 'terms', label: 'I agree to the <a href="#">terms of service</a> and the <a href="#">privacy policy</a>.', must: true })}
         ${fCheck({ name: 'marketing_opt_in', label: 'Send me occasional offers and new-restaurant news. You can turn this off any time.', value: 'yes' })}
         <button class="btn btn-primary btn-block btn-lg" type="submit">Create account</button>
@@ -249,20 +293,19 @@ const customerSignin = shell({
     <div class="auth-card">
       ${stepsBar(0, ['Your details', 'How you found us'])}
       <h1>Sign in</h1>
-      <p class="sub">Enter the mobile number or email you signed up with.</p>
+      <p class="sub">Use the email address and password you signed up with.</p>
 
-      <form class="form" name="customer-signin" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- POST /api/auth/login → {email*, password*, expected_role, totp_code} -->
+      <form class="form" data-api-form="customer.login"
             data-success-url="attribution.html?after=customer-signin" novalidate>
-        ${netlify('customer-signin')}
-        <input type="hidden" name="account_ref" data-account-ref value="" />
         ${status()}
-        ${fText({ name: 'phone_or_email', label: 'Mobile number or email', required: true, ph: '+251 91 234 5678', autocomplete: 'username' })}
+        ${fText({ name: 'email', label: 'Email address', type: 'email', required: true, ph: 'you@example.com', autocomplete: 'username' })}
         ${fText({ name: 'password', label: 'Password', type: 'password', required: true, ph: 'Your password', autocomplete: 'current-password' })}
         ${fCheck({ name: 'remember', label: 'Keep me signed in on this device', value: 'yes' })}
         <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
       </form>
 
-      <p class="foot-note"><a href="#">Forgot your password?</a></p>
+      <p class="foot-note"><a href="#" data-forgot>Forgot your password?</a></p>
       <p class="foot-note" style="margin-top:10px">New to Addis Bites? <a href="customer-signup.html">Create an account</a></p>
       <p class="foot-note" style="margin-top:10px;font-size:13.5px">Delivering for us? <a href="courier-signin.html">Courier sign in</a> · Dispatch desk? <a href="dispatch-signin.html">Console sign in</a></p>
     </div>
@@ -295,20 +338,29 @@ const courierSignup = shell({
       <h1>Sign up to deliver</h1>
       <p class="sub">Fill this in today. A dispatcher reviews every application by hand, then we will contact you to collect your ID and licence.</p>
 
-      <form class="form" name="courier-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- Couriers are PHONE + ONE-TIME CODE on this API:
+           POST /api/auth/send-otp?phone=  then
+           POST /api/auth/driver-phone-signup {phone*, code*, name*, ...}
+           Every field below exists in that schema, so nothing typed here is
+           silently discarded. ID / licence / payout details are collected by a
+           dispatcher on the phone — exactly how the business runs today. -->
+      <form class="form" data-api-form="courier.register" data-otp
             data-success-url="attribution.html?after=courier-signup" novalidate>
-        ${netlify('courier-signup')}
         <input type="hidden" name="account_ref" data-account-ref value="" />
         ${status()}
 
         <fieldset>
           <legend>About you</legend>
-          ${fText({ name: 'full_name', label: 'Full name', required: true, ph: 'Dawit Haile', autocomplete: 'name' })}
-          ${fRow(
-            fText({ name: 'phone', label: 'Mobile number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678', digits: 9, inputmode: 'tel' }),
-            fText({ name: 'email', label: 'Email address', type: 'email', required: true, ph: 'you@example.com', autocomplete: 'email' })
-          )}
+          ${fText({ name: 'name', label: 'Full name', required: true, ph: 'Dawit Haile', autocomplete: 'name' })}
+          ${phoneOtp({ name: 'phone', label: 'Mobile number', hint: 'We text a code to this number. It also becomes your sign-in.' })}
+          ${fCode()}
+          ${fText({ name: 'email', label: 'Email address', ph: 'you@example.com', autocomplete: 'email', hint: 'Optional — but it is how payout statements reach you.' })}
           ${fSelect({ name: 'sub_city', label: 'Sub-city you want to work in', required: true, options: SUB_CITIES, hint: 'You will only be offered jobs inside this area.' })}
+          ${fSelect({
+            name: 'telecom_provider', label: 'Which network is that number on?',
+            options: [{ v: 'ethio', l: 'Ethio Telecom' }, { v: 'safaricom', l: 'Safaricom' }],
+            hint: 'Helps keep code delivery reliable.'
+          })}
         </fieldset>
 
         <fieldset>
@@ -322,43 +374,56 @@ const courierSignup = shell({
               { v: 'On foot', l: 'On foot (short distances)' }
             ]
           })}
-          ${fRow(
-            fText({ name: 'plate', label: 'Plate number', ph: 'A 12345', hint: 'Needed for motorcycle or car.' }),
-            fText({ name: 'licence_no', label: "Driver's licence number", ph: 'Optional for bicycle or on foot' })
-          )}
+          ${fSelect({
+            name: 'license_valid', label: 'Do you hold a valid driving licence?',
+            options: [
+              { v: 'yes', l: 'Yes, currently valid' },
+              { v: 'no', l: 'No' },
+              { v: 'not-applicable', l: 'Not needed for what I ride' }
+            ],
+            hint: 'A dispatcher checks the original document before your first delivery.'
+          })}
         </fieldset>
 
         <fieldset>
-          <legend>Verification &amp; payouts</legend>
-          ${fText({ name: 'national_id', label: 'National ID (Fayda) number', required: true, ph: '16 digits', hint: 'We verify this before your first delivery. It is never shown to customers.' })}
+          <legend>When can you work?</legend>
+          ${fChecks({
+            name: 'days_available', legend: 'Days you can normally go online',
+            options: [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']]
+          })}
           ${fSelect({
-            name: 'payout_method', label: 'How should we pay you?', required: true,
+            name: 'peak_window', label: 'Which rush suits you best?',
             options: [
-              { v: 'Telebirr', l: 'Telebirr mobile money' },
-              { v: 'CBE', l: 'CBE bank transfer' },
-              { v: 'Other bank', l: 'Another bank' }
+              { v: 'lunch', l: 'Lunch — 11:00 to 14:00' },
+              { v: 'dinner', l: 'Dinner — 17:00 to 21:00' },
+              { v: 'both', l: 'Both' },
+              { v: 'flexible', l: 'Flexible' }
             ]
           })}
-          ${fText({ name: 'payout_account', label: 'Payout account number', required: true, ph: 'The number we should send your earnings to' })}
+          ${fSelect({
+            name: 'start_availability', label: 'When can you start?',
+            options: [
+              { v: 'immediately', l: 'Immediately' },
+              { v: 'this-week', l: 'This week' },
+              { v: 'this-month', l: 'This month' },
+              { v: 'exploring', l: 'Just exploring for now' }
+            ]
+          })}
+        </fieldset>
+
+        <fieldset>
+          <legend>Emergency contact &amp; referrals</legend>
           ${fRow(
             fText({ name: 'emergency_name', label: 'Emergency contact name', required: true, ph: 'Full name' }),
             fText({ name: 'emergency_phone', label: 'Emergency contact number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678' })
           )}
-          ${fSelect({
-            name: 'experience', label: 'How much delivery experience do you have?',
-            options: [
-              { v: 'none', l: 'This is my first time' },
-              { v: 'under1', l: 'Under a year' },
-              { v: '1to3', l: '1 to 3 years' },
-              { v: 'over3', l: 'More than 3 years' }
-            ]
-          })}
+          ${fText({ name: 'referral_code', label: 'Were you referred by an existing courier?', ph: 'Their name or code', hint: 'It earns them the referral bonus and speeds up your application.' })}
+          <p class="hint" style="margin:16px 0 0">A dispatcher collects your ID, licence and payout account when they call — so there is nothing to photograph or upload today.</p>
         </fieldset>
 
         <fieldset>
           <legend>Before you submit</legend>
-          ${fCheck({ name: 'confirm_age', label: 'I am 18 or older and I hold a valid national ID.', must: true })}
-          ${fCheck({ name: 'confirm_docs', label: 'I understand a dispatcher will contact me to collect my ID, licence and vehicle papers.', must: true })}
+          ${fCheck({ name: 'background_check_accepted', label: 'I am 18 or older, I agree to a background check, and I understand a dispatcher will contact me to collect my ID, licence and vehicle papers.', must: true })}
           ${fCheck({ name: 'confirm_terms', label: 'I agree to the <a href="#">courier terms</a> and the <a href="#">privacy policy</a>.', must: true })}
           ${fCheck({ name: 'marketing_opt_in', label: 'Send me dispatch updates on Telegram or SMS.', value: 'yes' })}
         </fieldset>
@@ -397,15 +462,15 @@ const courierSignin = shell({
       <h1>Courier sign in</h1>
       <p class="sub">Use the mobile number you applied with. If your application is still being reviewed, we will say so here.</p>
 
-      <form class="form" name="courier-signin" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+      <!-- POST /api/auth/phone-login → {phone*, code*, name, sub_city, intent}
+           Couriers sign in with a phone number + one-time code, not a password. -->
+      <form class="form" data-api-form="courier.login" data-otp
             data-success-url="attribution.html?after=courier-signin" novalidate>
-        ${netlify('courier-signin')}
-        <input type="hidden" name="account_ref" data-account-ref value="" />
+        <input type="hidden" name="intent" value="driver" />
         ${status()}
-        ${fText({ name: 'phone_or_email', label: 'Mobile number or email', required: true, prefix: '+251', ph: '91 234 5678', autocomplete: 'username' })}
-        ${fText({ name: 'password', label: 'Password', type: 'password', required: true, ph: 'Your password', autocomplete: 'current-password' })}
-        ${fText({ name: 'otp', label: 'One-time code', ph: '6 digits', inputmode: 'numeric', hint: 'Optional. We ask for a code when you sign in from a new phone.' })}
-        ${fCheck({ name: 'remember', label: 'Keep me signed in on this phone', value: 'yes' })}
+        ${phoneOtp({ name: 'phone', label: 'Mobile number', hint: 'The number your application was approved under.' })}
+        ${fCode()}
+        ${fSelect({ name: 'sub_city', label: 'Sub-city you work in', options: SUB_CITIES, hint: 'Usually saved for you — check it is right.' })}
         <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
       </form>
 
@@ -441,12 +506,13 @@ const dispatchSignin = shell({
       <h1>Console sign in</h1>
       <p class="sub">Dispatch and finance staff only. Accounts are issued by an administrator — there is no self sign-up for this surface.</p>
 
-      <form class="form" name="dispatch-signin" method="POST" data-netlify="true" netlify-honeypot="bot-field" novalidate>
-        ${netlify('dispatch-signin')}
+      <!-- POST /api/auth/operator-login → {username*, password*}.
+           Staff sign in with a USERNAME, not an email — matching the live
+           /console/login page so existing operator accounts keep working. -->
+      <form class="form" data-api-form="operator.login" novalidate>
         ${status()}
-        ${fText({ name: 'staff_email', label: 'Work email', type: 'email', required: true, ph: 'you@orderaddisbites.com', autocomplete: 'username' })}
+        ${fText({ name: 'username', label: 'Username', required: true, ph: 'yordanos', autocomplete: 'username', hint: 'Issued by an administrator. This is not your email address.' })}
         ${fText({ name: 'password', label: 'Password', type: 'password', required: true, ph: 'Your password', autocomplete: 'current-password' })}
-        ${fText({ name: 'staff_code', label: 'Staff code', ph: '6 digits', inputmode: 'numeric', hint: 'The second factor your administrator issued with your account.' })}
         <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in to console</button>
       </form>
 
@@ -475,67 +541,63 @@ const partnerSignup = shell({
   </header>
 
   <div class="form-card">
-    <form class="form" name="partner-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+    <!-- POST /api/public/listing-intent — the API's own public partner intake.
+         Required by the schema: name*, phone*. Consent fields (partner_consent,
+         signed_name, consent_method) are what make the submission legally valid,
+         so they are always sent. -->
+    <form class="form" data-api-form="partner.listing"
           data-success-url="attribution.html?after=partner-signup" novalidate>
-      ${netlify('partner-signup')}
-      <input type="hidden" name="account_ref" data-account-ref value="" />
       ${status()}
 
       <fieldset>
         <legend>Your restaurant</legend>
         ${fText({ name: 'restaurant_name', label: 'Restaurant name', required: true, ph: 'Habesha Kitchen' })}
         ${fSelect({ name: 'sub_city', label: 'Sub-city', required: true, options: SUB_CITIES })}
-        ${fText({ name: 'address', label: 'Street, building or landmark', required: true, ph: 'Bole, near Edna Mall, ground floor', hint: 'A landmark your couriers will recognise helps most.' })}
-        ${fText({ name: 'dishes', label: 'Your most popular dishes', required: true, ph: 'Doro wat, kitfo, tibs, shiro', hint: 'We show these first when customers browse near you.' })}
-        ${fSelect({
-          name: 'price_band', label: 'Typical price per main dish',
-          options: [
-            { v: 'under200', l: 'Under ETB 200' },
-            { v: '200to400', l: 'ETB 200–400' },
-            { v: '400to700', l: 'ETB 400–700' },
-            { v: 'over700', l: 'Over ETB 700' }
-          ]
-        })}
+        ${fText({ name: 'landmark', label: 'Street, building or landmark', required: true, ph: 'Bole, near Edna Mall, ground floor', hint: 'A landmark your couriers will recognise helps most.' })}
+        ${fText({ name: 'cuisine', label: 'What kind of food do you serve?', ph: 'Ethiopian traditional, fasting-day menu, grill…' })}
         ${fArea({ name: 'hours', label: 'Opening hours', ph: 'Monday to Saturday, 08:00–21:00. Closed Sunday.', required: true })}
       </fieldset>
 
       <fieldset>
         <legend>Who should we contact?</legend>
-        ${fText({ name: 'contact_name', label: 'Owner or manager name', required: true, ph: 'Full name' })}
+        ${fText({ name: 'owner_name', label: 'Owner or manager name', required: true, ph: 'Full name' })}
         ${fRow(
-          fText({ name: 'contact_phone', label: 'Mobile number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678', digits: 9, inputmode: 'tel' }),
-          fText({ name: 'contact_email', label: 'Email address', type: 'email', required: true, ph: 'you@example.com', autocomplete: 'email' })
+          fText({ name: 'phone', label: 'Mobile number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678', digits: 9, inputmode: 'tel' }),
+          fText({ name: 'email', label: 'Email address', type: 'email', ph: 'you@example.com', autocomplete: 'email' })
         )}
-        ${fText({ name: 'calling_hours', label: 'Best time to call you', ph: 'Weekdays before 11:00' })}
+        ${fSelect({
+          name: 'owner_role', label: 'Your role at the restaurant',
+          options: [
+            { v: 'owner', l: 'I own it' },
+            { v: 'manager', l: 'I manage it' },
+            { v: 'family', l: 'It is a family business' },
+            { v: 'staff', l: 'I work here' }
+          ]
+        })}
+        ${fText({ name: 'telegram', label: 'Telegram username', ph: '@yourshop', hint: 'Fastest way for us to reach you.' })}
+        ${fText({ name: 'website', label: 'Website or Facebook page', ph: 'optional' })}
       </fieldset>
 
       <fieldset>
         <legend>How we pay you</legend>
         <p class="hint" style="margin:-6px 0 16px;font-size:13.5px">We need an account that accepts Ethiopian Birr so we can settle each order the same day.</p>
         ${fSelect({
-          name: 'settlement_method', label: 'Preferred settlement', required: true,
+          name: 'payout_method', label: 'Preferred settlement', required: true,
           options: [
             { v: 'Telebirr', l: 'Telebirr mobile money' },
             { v: 'CBE', l: 'CBE bank transfer' },
             { v: 'Other bank', l: 'Another bank' }
           ]
         })}
-        ${fText({ name: 'settlement_account', label: 'Telebirr or bank account number', required: true, ph: 'Account number we should pay into' })}
-        ${fSelect({
-          name: 'volume', label: 'Roughly how many delivery orders a day could you handle?',
-          options: [
-            { v: 'under10', l: 'Under 10' },
-            { v: '10to30', l: '10 to 30' },
-            { v: '30to80', l: '30 to 80' },
-            { v: 'over80', l: 'More than 80' }
-          ]
-        })}
+        ${fText({ name: 'payout_account', label: 'Telebirr or bank account number', ph: 'Account number we should pay into', hint: 'Optional today — a partner manager confirms it with you on the call.' })}
         ${fArea({ name: 'notes', label: 'Anything else we should know?', ph: 'Separate kitchen for fasting days, a second entrance, a gate code…' })}
       </fieldset>
 
       <fieldset>
         <legend>Before you submit</legend>
-        ${fCheck({ name: 'confirm_callonly', label: 'I understand Addis Bites dispatches jobs to couriers and settles payment with the restaurant — no separate order tablet is needed.', must: true })}
+        ${fCheck({ name: 'partner_consent', label: 'I am authorised to represent this restaurant, and I agree that Addis Bites may contact me about joining the network and may list the restaurant once terms are agreed.', must: true })}
+        ${fText({ name: 'signed_name', label: 'Type your full name as a signature', required: true, ph: 'The name of the person agreeing above' })}
+        ${fCheck({ name: 'confirm_callonly', label: 'I understand Addis Bites couriers order at my counter in person and we settle by Telebirr or CBE — no separate order tablet is needed.', must: true })}
         ${fCheck({ name: 'confirm_terms', label: 'I agree to the <a href="#">restaurant terms</a> and the <a href="#">privacy policy</a>.', must: true })}
         ${fCheck({ name: 'marketing_opt_in', label: 'Contact me about promotions and partner programmes.', value: 'yes' })}
       </fieldset>
@@ -564,11 +626,14 @@ const attribution = shell({
   </header>
 
   <div class="form-card">
-    <form class="form" name="attribution" method="POST" data-netlify="true" netlify-honeypot="bot-field"
+    <!-- Posted to POST /api/waitlist — the API's own interest-capture endpoint.
+         It is the one place the contract has an attribution field: heard_from
+         (plus referred_by and source_page). Required: type*, name*, phone*;
+         name and phone are filled from the signup step, so nobody is asked twice. -->
+    <form class="form" data-api-form="attribution"
           data-success-url="thanks.html" data-attribution-form novalidate>
-      ${netlify('attribution')}
-      <input type="hidden" name="account_ref" data-account-ref value="" />
       <input type="hidden" name="signed_up_as" data-role-field value="" />
+      <input type="hidden" name="account_ref" data-account-ref value="" />
       ${status()}
 
       <fieldset>
@@ -604,7 +669,8 @@ const attribution = shell({
       </fieldset>
 
       <button class="btn btn-primary btn-block btn-lg" type="submit">Finish</button>
-      <p class="hint" style="margin:0;text-align:center;font-size:13px">You can skip this — but it genuinely changes where we advertise next.</p>
+      <p style="margin:12px 0 0;text-align:center"><a class="link-u" href="thanks.html" style="font-size:14px">Skip this question</a></p>
+      <p class="hint" style="margin:8px 0 0;text-align:center;font-size:13px">Answering genuinely changes where we advertise next — but it is optional.</p>
     </form>
   </div>
 </main>`
