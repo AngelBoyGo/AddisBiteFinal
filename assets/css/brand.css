@@ -1,0 +1,87 @@
+/* Addis Bites — brand layer (maroon + gold + cream)
+   Tokens taken verbatim from the design handoff `brand.css`, which is the
+   authoritative source. Kept as a separate file so the Operations Console and
+   the public site share one palette.
+   Status colours keep their semantic meaning:
+   slate = new · amber/gold = waiting · red = problem · blue = info · green = done */
+
+:root{
+  /* brand */
+  --brand:#8E1B1B;
+  --brand-h:#6E1414;
+  --brand-weak:rgba(142,27,27,0.10);
+  --brand-fg:#8E1B1B;
+  --gold:#F2A93B;
+  --gold-deep:#D98A1F;
+  --cream:#F7F1E3;
+  --cream-deep:#EFE6D2;
+
+  /* neutrals — warm cream, deliberately not grey */
+  --bg:#FBF6EA;
+  --surface:#FFFFFF;
+  --surface-2:#F7F1E3;
+  --surface-3:#F1E8D6;
+  --hover:#EFE6D2;
+  --border:#E4D9C2;
+  --border-2:#CDBFA2;
+  --text:#2B2B2B;
+  --text-2:#6B6257;
+  --text-3:#8C8272;
+
+  /* status */
+  --slate-fg:#5A5348; --slate-bg:#EFE9DC; --slate-bd:#DCD2BE; --slate-dot:#8C8272;
+  --amber-fg:#7A4A05; --amber-bg:#FDF1DA; --amber-bd:#EFD3A0; --amber-dot:#D98A1F;
+  --red-fg:#9C1B1B;   --red-bg:#FBE9E7; --red-bd:#EFC1BB; --red-dot:#C62828;
+  --blue-fg:#1F4E7A;  --blue-bg:#E8F0F8; --blue-bd:#BED3E6; --blue-dot:#2F6FB0;
+  --green-fg:#1F5922; --green-bg:#E7F2E7; --green-bd:#BFDCC0; --green-dot:#2E7D32;
+  --purple-fg:#5B3AA0; --purple-bg:#F0EAFB; --purple-bd:#D6C7F2;
+
+  /* shape + depth */
+  --r-sm:6px; --r-md:10px; --r-lg:14px; --r-xl:20px; --r-pill:999px;
+  --shadow-1:0 1px 2px rgba(43,26,10,.06);
+  --shadow-2:0 4px 14px rgba(43,26,10,.10);
+  --shadow-pop:0 10px 30px rgba(43,26,10,.14),0 1px 3px rgba(43,26,10,.08);
+
+  /* brand gradient — used for logo tile, partner badge, hero accents */
+  --grad-brand:linear-gradient(135deg,var(--brand) 0%,var(--gold-deep) 130%);
+  --grad-hero:linear-gradient(120deg,var(--brand) 0%,var(--brand-h) 55%,var(--gold-deep) 190%);
+
+  --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --font-am:'Noto Sans Ethiopic','Inter',system-ui,sans-serif;
+}
+
+[data-theme="dark"]{
+  --bg:#20130F; --surface:#33201A; --surface-2:#291813; --surface-3:#3F2A22; --hover:#432C22;
+  --border:#4E332A; --border-2:#634437;
+  --text:#F7EFE2; --text-2:#C4B4A4; --text-3:#9C8A79;
+  --brand:#A82727; --brand-h:#8E1B1B; --brand-weak:rgba(168,39,39,.22); --brand-fg:#E8928E;
+  --gold:#F2A93B; --gold-deep:#F0B45A; --cream:#3A241C; --cream-deep:#33201A;
+  --slate-fg:#C4B4A4; --slate-bg:#3A2A22; --slate-bd:#4E332A; --slate-dot:#9C8A79;
+  --amber-fg:#F0B45A; --amber-bg:#3A2A15; --amber-bd:#5A3F1C; --amber-dot:#F0B45A;
+  --red-fg:#E57368;   --red-bg:#3A1F1B; --red-bd:#5C2C26; --red-dot:#E57368;
+  --blue-fg:#8FB8DC;  --blue-bg:#1C2A38; --blue-bd:#2E455C; --blue-dot:#5B93C7;
+  --green-fg:#7BC47F; --green-bg:#1C2E1C; --green-bd:#2E4A2E; --green-dot:#4CAF50;
+  --purple-fg:#BCA3F0; --purple-bg:#251C38; --purple-bd:#3B2D58;
+  --shadow-1:0 1px 2px rgba(0,0,0,.4);
+  --shadow-2:0 6px 18px rgba(0,0,0,.45);
+  --shadow-pop:0 12px 32px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.4);
+}
+
+/* Amharic uses its own face; Inter has no Ethiopic coverage */
+:root[lang="am"] body,
+[data-lang="am"] body,
+:lang(am){font-family:var(--font-am)}
+
+html,body{background:var(--bg);color:var(--text)}
+
+/* the maroon→gold gradient tile used as the logo mark everywhere */
+.logo-tile{
+  background:var(--grad-brand);
+  color:#FBF6EA;
+  border-radius:var(--r-md);
+  display:grid;place-items:center;
+  font-weight:750;letter-spacing:-.02em;
+  font-family:var(--font-ui);
+}
+.partner-badge{background:var(--grad-brand);color:#FBF6EA}

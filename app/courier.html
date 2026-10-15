@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en" class="c-html">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Addis Bites Courier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=mv8pckji">
+<link rel="stylesheet" href="courier.css?v=mv8pckji">
+<link rel="stylesheet" href="brand.css?v=mv8pckji">
+<style>@keyframes spin{to{transform:rotate(360deg)}} body{font-family:'Inter','Noto Sans Ethiopic',sans-serif}</style>
+</head>
+<body class="c-body">
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="data.js?v=mv8pckji"></script>
+<script src="ab-bus.js?v=mv8pckji"></script>
+<script src="ab-api.js?v=mv8pckji"></script>
+<script src="ab-seed.js?v=mv8pckji"></script>
+<script src="ab-bridge.js?v=mv8pckji"></script>
+<script src="ab-auth.js?v=mv8pckji"></script>
+<script>window.ABBus.init('courier');</script>
+<script src="courier-data.js?v=mv8pckji"></script>
+<script type="text/babel" src="tweaks_panel.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="lib.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="shell.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="c-lib.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="c-store.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="c-shell.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="c-instore.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="c-itemissue.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="c-screens1.jsx?v=mv8pckji"></script>
+<script type="text/babel" src="c-screens2.jsx?v=mv8pckji"></script>
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "auto",
+  "connection": "live",
+  "gps": "good",
+  "battery": 64,
+  "pageState": "normal",
+  "appState": "normal",
+  "startAt": "app",
+  "layout": "phone",
+  "mirror": true
+}/*EDITMODE-END*/;
+
+function Screen(){
+  const app = useApp(); const {s, tw} = app;
+  const top = s.stack[s.stack.length-1];
+  if (tw.pageState==='error') return <div className="c-main"><CState icon="wifiOff" tone="red" title="Couldn’t load" body="The server didn’t answer. Your saved actions are safe on this phone." action={<CBtn kind="primary" icon="refresh" onClick={()=>{ app.setTweak('pageState','loading'); setTimeout(()=>app.setTweak('pageState','normal'),1200); }}>Retry</CBtn>}/></div>;
+  if (top){ const p = top.params; switch(top.name){
+    case 'history': return <HistoryScreen {...p}/>; case 'jobDetail': return <JobDetail code={p.code}/>; case 'messages': return <MessagesScreen/>;
+    case 'thread': return <ThreadScreen {...p}/>; case 'settings': return <SettingsScreen/>; case 'deposit': return <DepositScreen/>; case 'points': return <PointsScreen/>; case 'queue': return <QueueScreen/>;
+  } }
+  if (tw.pageState==='loading' && s.tab!=='home') return <CSkel/>;
+  return ({home:<HomeScreen/>, job:<JobScreen/>, earn:<EarningsScreen/>, cash:<CashScreen/>, profile:<ProfileScreen/>})[s.tab];
+}
+
+function Blocking(){
+  const app = useApp(); const {tw} = app;
+  if (tw.appState==='update') return <div className="c-take"><div className="c-main"><CState icon="download" tone="blue" title="Update required" body="This version (3.4.1) no longer works with dispatch. Update to keep receiving jobs. Your cash and earnings are safe."/></div><div className="c-dock"><BigBtn icon="download" onClick={()=>{ app.toast('Opening Play Store…'); app.setTweak('appState','normal'); }}>Update now · 8 MB</BigBtn></div></div>;
+  if (tw.appState==='locationDenied') return <div className="c-take"><div className="c-main"><CState icon="gps" tone="amber" title="Location is off" body="Addis Bites needs your location to send jobs near you and to show dispatch where the food is. You cannot go online without it."/></div><div className="c-dock"><BigBtn onClick={()=>{ app.setTweak('appState','normal'); app.toast('Location allowed'); }}>Open settings & allow</BigBtn></div></div>;
+  if (tw.gps==='lost' && app.job && [0,3].includes(app.job.step)) return <div className="c-banner" style={{background:'var(--red-dot)',top:48}}><div className="c-row"><Ic n="gps" s={20}/><b style={{flex:1}}>GPS lost</b></div><div style={{fontSize:14.5}}>Move to open sky. Dispatch sees your last location from {fmtClock(app.now-120000).time}. Arrived button is locked until GPS returns.</div></div>;
+  return null;
+}
+
+function Phone(){
+  const app = useApp(); const {s, tw} = app; const c = fmtClock(app.now);
+  const inApp = s.auth==='app';
+  const sh = s.sheet;
+  return <div className={cx('c-phone', tw.layout==='wide'&&'wide')}><div className="c-screen">
+    <div className="c-osbar"><span className="mono">{c.time}</span><span className="cam"/><span className="c-row" style={{gap:6}}><Ic n="wifiOff" s={13} style={{display:tw.connection==='offline'?'block':'none'}}/><span className="mono" style={{fontSize:11}}>{tw.connection==='offline'?'No signal':'3G'}</span><Ic n="battery" s={16}/><span className="mono" style={{fontSize:11,color:tw.battery<20?'var(--red-fg)':undefined}}>{tw.battery}%</span></span></div>
+    <div className="c-app">
+      {inApp && <StatusStrip/>}
+      {inApp ? <Screen/> : <AuthFlow/>}
+      {inApp && !s.stack.length && <TabBar/>}
+      {inApp && !s.offer && !s.takeover && <button className="c-fab" style={{bottom: s.stack.length ? 96 : (s.tab==='job' && app.job ? 166 : 80)}} aria-label="Help" onClick={()=>app.openSheet({type:'help'})}><Ic n="headset" s={24}/></button>}
+      {inApp && <DemoCoach/>}
+      <Toasts2/>
+      <DispatchBanner/>
+      <OfferNote/>
+      {inApp && <Blocking/>}
+      {sh && sh.type==='help' && <HelpSheet/>}
+      {sh && sh.type==='problem' && <ProblemSheet code={sh.code} preset={sh.preset}/>}
+      {sh && sh.type==='order' && <OrderSheet code={sh.code}/>}
+      <PoolBoard/>
+      <Takeover/>
+      <OfferTakeover/>
+      <LockScreen/>
+    </div>
+  </div></div>;
+}
+
+function App(){
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const app = useCourierStore(t, setTweak);
+  const hour = new Date(app.now).getUTCHours();
+  const theme = t.theme==='auto' ? (hour>=19 || hour<6 ? 'dark' : 'light') : t.theme;
+  useEffect(()=>{ document.documentElement.setAttribute('data-theme', theme); },[theme]);
+  const [scale, setScale] = useState(1);
+  useEffect(()=>{ const f = ()=>setScale(Math.min(1, (window.innerHeight-40)/844)); f(); window.addEventListener('resize', f); return ()=>window.removeEventListener('resize', f); },[]);
+  useEffect(()=>{ app.up(n=>{ n.auth = t.startAt==='login' ? 'lang' : 'app'; n.onboardStep = 0; }); },[t.startAt]);
+  return <Ctx.Provider value={{...app, lang:app.lang}}>
+    <div className="c-stage">
+      <div className="c-phone-wrap" style={t.layout==='phone'?{transform:`scale(${scale})`, height:844*scale}:{}}><Phone/></div>
+      {t.mirror && <ConsoleMirror/>}
+    </div>
+    <TipLayer/>
+    <TweaksPanel>
+      <TweakSection label="Display"><TweakRadio label="Mode" value={t.theme} options={['auto','light','sun','dark']} onChange={v=>setTweak('theme',v)}/>
+        <TweakRadio label="Frame" value={t.layout} options={['phone','wide']} onChange={v=>setTweak('layout',v)}/>
+        <TweakToggle label="Console mirror panel" value={t.mirror} onChange={v=>setTweak('mirror',v)}/></TweakSection>
+      <TweakSection label="Device"><TweakRadio label="Connection" value={t.connection} options={['live','reconnecting','offline']} onChange={v=>setTweak('connection',v)}/>
+        <TweakRadio label="GPS" value={t.gps} options={['good','weak','lost']} onChange={v=>setTweak('gps',v)}/>
+        <TweakSlider label="Battery" value={t.battery} min={5} max={100} unit="%" onChange={v=>setTweak('battery',v)}/></TweakSection>
+      <TweakSection label="States"><TweakSelect label="Page state" value={t.pageState} options={['normal','loading','empty','error']} onChange={v=>setTweak('pageState',v)}/>
+        <TweakSelect label="Account" value={t.appState} options={['normal','suspended','update','locationDenied']} onChange={v=>setTweak('appState',v)}/>
+        <TweakRadio label="Start at" value={t.startAt} options={['app','login']} onChange={v=>setTweak('startAt',v)}/></TweakSection>
+      <TweakSection label="Demo"><TweakButton label="Run demo flow" onClick={app.startDemo}/><TweakButton label="Reset" secondary onClick={()=>location.reload()}/></TweakSection>
+    </TweaksPanel>
+  </Ctx.Provider>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
