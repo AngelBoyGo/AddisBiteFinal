@@ -99,8 +99,7 @@ function aside({ img, title, copy, points, pointsHeading }) {
     ${points.map((p) => `<li><svg><use href="#i-check"/></svg><span>${p}</span></li>`).join('\n    ')}
   </ul>
   <div class="foot">
-    <p style="margin:0 0 6px">Already with us? <a href="customer-signin.html">Customer sign in</a> · <a href="courier-signin.html">Courier sign in</a></p>
-    <p style="margin:0">Dispatch desk: <a href="dispatch-signin.html">console sign in</a></p>
+    <p style="margin:0">Already with us? <a href="customer-signin.html">Customer sign in</a> · <a href="courier-signin.html">Courier sign in</a></p>
   </div>
 </aside>`;
 }
@@ -307,7 +306,7 @@ const customerSignin = shell({
 
       <p class="foot-note"><a href="#" data-forgot>Forgot your password?</a></p>
       <p class="foot-note" style="margin-top:10px">New to Addis Bites? <a href="customer-signup.html">Create an account</a></p>
-      <p class="foot-note" style="margin-top:10px;font-size:13.5px">Delivering for us? <a href="courier-signin.html">Courier sign in</a> · Dispatch desk? <a href="dispatch-signin.html">Console sign in</a></p>
+      <p class="foot-note" style="margin-top:10px;font-size:13.5px">Delivering for us? <a href="courier-signin.html">Courier sign in</a></p>
     </div>
   </section>
 </main>`
@@ -476,7 +475,6 @@ const courierSignin = shell({
 
       <p class="foot-note"><a href="#">Forgot your password?</a></p>
       <p class="foot-note" style="margin-top:10px">Not applied yet? <a href="courier-signup.html">Sign up to deliver</a></p>
-      <p class="foot-note" style="margin-top:10px;font-size:13.5px">Dispatch desk? <a href="dispatch-signin.html">Console sign in</a></p>
     </div>
   </section>
 </main>`
@@ -489,19 +487,7 @@ const dispatchSignin = shell({
   title: 'Dispatch console sign in — Addis Bites',
   desc: 'Staff sign in to the Addis Bites operations console.',
   body: `${brandBar('Staff only')}
-<main class="auth-shell">
-  ${aside({
-    img: 'assets/img/dishes/kitfo.jpg',
-    title: 'Operations console.',
-    copy: 'The board, the payment queues, the float and the courier network — one screen for whoever is on shift.',
-    points: [
-      'Every order shows its blocker and its one next action.',
-      'Verify Telebirr and CBE payments before anything is dispatched.',
-      'Pay restaurants straight from the operator float.',
-      'No money is ever hidden — click any amount to see what is behind it.'
-    ]
-  })}
-  <section class="auth-main">
+<main class="auth-main" style="min-height:100vh;align-items:center;justify-content:center">
     <div class="auth-card">
       <h1>Console sign in</h1>
       <p class="sub">Dispatch and finance staff only. Accounts are issued by an administrator — there is no self sign-up for this surface.</p>
@@ -522,7 +508,6 @@ const dispatchSignin = shell({
       <p class="foot-note" style="font-size:13.5px">Need an account? Ask your administrator, or email <a href="mailto:dispatch@orderaddisbites.com">dispatch@orderaddisbites.com</a>.</p>
       <p class="foot-note" style="font-size:13.5px">Not staff? <a href="customer-signin.html">Customer sign in</a> · <a href="courier-signin.html">Courier sign in</a></p>
     </div>
-  </section>
 </main>`
 });
 

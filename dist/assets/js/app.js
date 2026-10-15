@@ -139,49 +139,77 @@
   }
 
   /* ------------------------------------------------------------ 4. language */
+  /* Amharic dictionary. Keys are the ENGLISH strings exactly as they appear in
+     the markup; values are the Amharic rendering. A missing key falls back to
+     English, which is the correct (never-broken) default.
+
+     IMPORTANT — why the keys are full sentences and not short ids:
+     the markup writes `<span data-i18n>Sign in</span>` with NO attribute value.
+     The old implementation keyed off `getAttribute('data-i18n')`, which is `""`
+     for every one of those spans, so it stored one entry EN_CACHE[""] and then
+     painted that single string ("How it works") into every i18n node on the
+     page. That is what duplicated "How it works" across the nav and hero, and
+     why AM[""] was undefined so the toggle did nothing. We now key off each
+     element's own English text, cached per element in data-i18n-en. */
   var AM = {
-    'Sign in': 'ይግቡ', 'Sign up': 'ይመዝገቡ', 'Log in': 'ይግቡ',
+    /* header / drawer navigation */
+    'How it works': 'እንዴት እንደሚሠራ',
+    'Add your restaurant': 'ሬስቶራንትዎን ያክሉ',
+    'Sign in': 'ይግቡ',
+    'Sign up': 'ይመዝገቡ',
+    'Log in': 'ይግቡ',
+    'How Addis Bites works': 'አዲስ ባይትስ እንዴት እንደሚሠራ',
+    'Ways to pay': 'የመክፈያ መንገዶች',
+    'Delivery areas': 'የማድረሻ አካባቢዎች',
+    'Get help': 'እርዳታ ያግኙ',
+    /* hero */
     'Order delivery near you': 'ወደ እርስዎ አቅራቢያ ምግብ ያዙ',
     'Enter delivery address': 'የማድረሻ አድራሻ ያስገቡ',
-    'Search here': 'እዚህ ይፈልጉ', 'Deliver now': 'አሁን አድርስ'
+    'Deliver now': 'አሁን አድርስ',
+    'Search here': 'እዚህ ይፈልጉ'
   };
-  var EN_CACHE = null;
+  /* Flipped to true once the English baseline has been captured, so a second
+     call can never overwrite English with a translated string. */
+  var EN_CACHE = false;
 
+  /* Cache each i18n element's ORIGINAL English text on the element itself.
+     Per-element storage is what makes duplicate labels safe: two spans that
+     both read "Sign in" each keep their own baseline. */
   function collectEnglish() {
     if (EN_CACHE) return;
-    EN_CACHE = {};
     var nodes = document.querySelectorAll('[data-i18n]');
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
-      var key = n.getAttribute('data-i18n');
-      if (EN_CACHE[key] === undefined) EN_CACHE[key] = n.textContent;
+      var attr = (n.getAttribute('data-i18n') || '').trim();
+      var en = attr || (n.textContent || '').trim();
+      n.setAttribute('data-i18n-en', en);
     }
+    EN_CACHE = true;
   }
 
   function initLang() {
     var root = document.documentElement;
-    var saved = get(LS.lang, 'en');
     collectEnglish();
 
     function paint() {
       var lang = get(LS.lang, 'en');
       root.setAttribute('lang', lang === 'am' ? 'am' : 'en');
       root.setAttribute('data-lang', lang);
+
       var nodes = document.querySelectorAll('[data-i18n]');
       for (var i = 0; i < nodes.length; i++) {
         var n = nodes[i];
-        var key = n.getAttribute('data-i18n');
-        var am = AM[key];
-        if (lang === 'am' && am) n.textContent = am;
-        else if (EN_CACHE[key] !== undefined) n.textContent = EN_CACHE[key];
+        var en = n.getAttribute('data-i18n-en') || '';
+        var am = AM[en];
+        n.textContent = (lang === 'am' && am) ? am : en;
       }
-      /* placeholders */
+      /* placeholders — same rule, baseline held in data-ph-en */
       var ph = document.querySelectorAll('[data-i18n-ph]');
       for (var p = 0; p < ph.length; p++) {
         var el = ph[p];
-        var k = el.getAttribute('data-i18n-ph');
-        if (lang === 'am') el.setAttribute('placeholder', AM[k] || el.getAttribute('data-ph-en') || '');
-        else el.setAttribute('placeholder', el.getAttribute('data-ph-en') || '');
+        var base = el.getAttribute('data-ph-en') || '';
+        var tr = AM[base];
+        el.setAttribute('placeholder', (lang === 'am' && tr) ? tr : base);
       }
       /* toggles */
       var btns = document.querySelectorAll('[data-lang-set]');
@@ -189,9 +217,9 @@
         btns[b].setAttribute('aria-pressed', btns[b].getAttribute('data-lang-set') === lang ? 'true' : 'false');
       }
     }
-    /* capture original placeholders once */
+    /* capture original placeholders once, before the first paint */
     var phAll = document.querySelectorAll('[data-i18n-ph]');
-    for (var q = 0; q < phAll.length; q++) phAll[q].setAttribute('data-ph-en', phAll[q].getAttribute('placeholder') || '');
+    for (var q = 0; q < phAll.length; q++) phAll[q].setAttribute('data-ph-en', (phAll[q].getAttribute('placeholder') || '').trim());
 
     document.addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-lang-set]') : null;
