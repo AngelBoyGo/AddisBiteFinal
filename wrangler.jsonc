@@ -1,7 +1,7 @@
 {
   // Genspark hosted deploy (Cloudflare Workers for Platform).
   //
-  // The published site bundle is the committed ./dist tree, built by
+  // The published bundle is the committed ./dist tree, built by
   //   ./tools/build-dist.sh
   // It contains, under one origin:
   //   /                    landing + auth / partner / attribution / thanks
@@ -10,12 +10,15 @@
   //   /app/customer.html   Customer app
   //   /app/courier.html    Courier app
   //
-  // Static assets only — no Worker script, no bindings, no cron. Dashboard
-  // links are patched into the dist copy alone (tools/patch-links.mjs).
+  // src/index.js is a one-line pass-through to the ASSETS binding. Static only:
+  // no D1, no KV (unsupported by the hosted pipeline), no R2, no cron triggers.
+  // Dashboard links are patched into the dist copy alone (tools/patch-links.mjs).
   "name": "addisbites",
+  "main": "src/index.js",
   "compatibility_date": "2026-09-17",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash"
   }
 }
