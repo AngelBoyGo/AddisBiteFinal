@@ -9,16 +9,25 @@
      POST /api/auth/register                   {email*, password*, name, first_name,
                                                 last_name, phone, role}
      POST /api/auth/login                      {email*, password*, expected_role, totp_code}
-     POST /api/auth/driver-phone-signup        {phone*, code*, name*, vehicle_type,
-                                                sub_city, telecom_provider, days_available[],
-                                                peak_window, license_valid, referral_code,
-                                                emergency_name, emergency_phone,
-                                                background_check_accepted}
-     POST /api/auth/phone-login                {phone*, code*, name, sub_city, intent}
+     POST /api/auth/telegram/start             {phone*, name, sub_city, role, vehicle_type,
+                                                email, telecom_provider, days_available[],
+                                                peak_window, license_valid, start_availability,
+                                                referral_code, background_check_accepted}
+     POST /api/auth/telegram/poll              {session_id*, poll_secret*} → session_token
      POST /api/auth/operator-login             {username*, password*}
      POST /api/public/listing-intent           {name*, phone*, intent, restaurant_name,
                                                 sub_city, payout_method, partner_consent, ...}
      POST /api/outreach/intake                 {client_id*, ...}
+
+   RETIRED — the SMS one-time-code courier path. These three are deliberately no
+   longer called by anything (see the Telegram block below for what replaced
+   them). They are kept named here only because the LIVE API still exposes them:
+     POST /api/auth/send-otp?phone=            (phone in QUERY)
+     POST /api/auth/verify-otp                 {phone*, code*}
+     POST /api/auth/driver-phone-signup        {phone*, code*, name*, ...}
+     POST /api/auth/phone-login                {phone*, code*, name, sub_city, intent}
+   They required a code that /api/auth/send-otp could only ever deliver to ONE
+   allowlisted number, so they could not onboard anyone else.
 
    IMPORTANT — two things are UNVERIFIED and must be confirmed with the backend:
      1. the allowed `role` value for /api/auth/register (schema declares a bare
@@ -306,26 +315,21 @@
       return { path: '/api/auth/operator-login', body: { username: v.username, password: v.password } };
     },
 
-    /* /api/auth/driver-phone-signup — courier application (step 2 of OTP). */
-    courierRegister: function (v) {
-      var body = { phone: v.phone, code: v.code, name: v.name };
-      ['vehicle_type', 'sub_city', 'telecom_provider', 'email', 'peak_window',
-       'license_valid', 'start_availability', 'referral_code',
-       'emergency_name', 'emergency_phone'].forEach(function (k) {
-        if (v[k] !== undefined && v[k] !== '') body[k] = v[k];
-      });
-      if (v.emergency_phone) body.emergency_phone = normPhone(v.emergency_phone);
-      if (Array.isArray(v.days_available) && v.days_available.length) body.days_available = v.days_available;
-      body.background_check_accepted = !!v.background_check_accepted;
-      return { path: '/api/auth/driver-phone-signup', body: body };
+    /* /api/auth/driver-phone-signup and /api/auth/phone-login are RETIRED.
+       Both took a `code` from the SMS one-time flow, which could only ever reach
+       one allowlisted number, so the courier forms no longer post here at all —
+       they are `data-verify-only` and verify by Telegram (live) or an emailed
+       code (once the backend can send). See telegramStart below.
+
+       They are left mapped to a throwing transform rather than deleted so that
+       a stale reference fails LOUDLY and with the reason, instead of returning
+       `undefined` and crashing somewhere less obvious. */
+    courierRegister: function () {
+      throw new Error('Courier sign-up now verifies by Telegram (or an emailed code), not an SMS one-time code. Use ABApi.telegramStart().');
     },
 
-    /* /api/auth/phone-login — courier sign-in (phone + OTP), step 2. */
-    courierLogin: function (v) {
-      var body = { phone: v.phone, code: v.code, intent: v.intent || 'driver' };
-      if (v.name) body.name = v.name;
-      if (v.sub_city) body.sub_city = v.sub_city;
-      return { path: '/api/auth/phone-login', body: body };
+    courierLogin: function () {
+      throw new Error('Courier sign-in now verifies by Telegram (or an emailed code), not an SMS one-time code. Use ABApi.telegramStart() with role "driver".');
     },
 
     /* /api/public/listing-intent — restaurant partner sign-up.
@@ -406,15 +410,12 @@
   }
 
   /* ------------------------------------------------------------------ OTP */
-  /* Two-step phone flow shared by courier sign-up and courier sign-in.
-     NOTE: /api/auth/send-otp takes `phone` as a QUERY parameter — not a body. */
-  function sendOtp(phone) {
-    var p = normPhone(phone);
-    return call('/api/auth/send-otp?phone=' + encodeURIComponent(p), undefined, { method: 'POST' });
-  }
-  function verifyOtp(phone, code) {
-    return call('/api/auth/verify-otp', { phone: normPhone(phone), code: String(code).trim() });
-  }
+  /* RETIRED — sendOtp / verifyOtp are gone. The courier flow used to be
+     phone + one-time code, but /api/auth/send-otp could only deliver SMS to a
+     single allowlisted number, so it could not onboard anyone else. Courier
+     sign-up and sign-in now verify by Telegram (telegramStart below) or an
+     emailed code (emailStart), both of which need no SMS. Nothing in this
+     codebase calls these any more. */
 
   /* ------------------------------------------------------------ Telegram */
   /* The SECOND way to verify an account. Contract confirmed from the live
@@ -537,8 +538,6 @@
     humanError: humanError,
     transforms: TRANSFORMS,
     formMap: FORMS,
-    sendOtp: sendOtp,
-    verifyOtp: verifyOtp,
     /* Second verification path — see the Telegram block above. */
     telegramStart: telegramStart,
     telegramPoll: telegramPoll,

@@ -116,11 +116,23 @@ function fill(form, w) {
 const CASES = [
   ['customer-signup.html', 'customer.register', '/api/auth/register'],
   ['customer-signin.html', 'customer.login', '/api/auth/login'],
-  ['courier-signup.html', 'courier.register', '/api/auth/driver-phone-signup'],
-  ['courier-signin.html', 'courier.login', '/api/auth/phone-login'],
   ['dispatch-signin.html', 'operator.login', '/api/auth/operator-login'],
   ['partner-signup.html', 'partner.listing', '/api/public/listing-intent'],
   ['attribution.html', 'attribution', '/api/waitlist']
+];
+
+/* The two courier pages are `data-verify-only`: verification IS the submission,
+   so they do NOT post a form transform at all. Their payload is the Telegram
+   verification request, produced by ABApi.telegramStart(). Validating that
+   against the live schema is therefore the real contract check for them — and it
+   is the check that matters, because every field the applicant typed rides along
+   (a courier who typed eight answers must not have them silently dropped).
+
+   `retired` names the endpoint this page used to hit, asserted ABSENT so the
+   SMS one-time-code path can never quietly come back. */
+const VERIFY_CASES = [
+  ['courier-signup.html', 'courier.register', 'driver', '/api/auth/driver-phone-signup'],
+  ['courier-signin.html', 'courier.login', 'driver', '/api/auth/phone-login']
 ];
 
 console.log('\n\u001b[1mContract check: every form payload vs the live OpenAPI schema\u001b[0m');
@@ -195,6 +207,116 @@ for (const [page, formKey, expectPath] of CASES) {
       bad(`${page}: ${k}="${v}" not in allowed enum [${node.enum.join(', ')}]`);
     }
   }
+}
+
+/* ------------------------------- verification-only pages (courier) -------- */
+/* These pages carry no form transform: the Telegram start request IS the body.
+   Build it exactly as the browser does (ABApi.telegramStart) and check it
+   against the live TelegramAuthStartRequest schema. */
+console.log('\n\u001b[1mVerification contract: courier pages → POST /api/auth/telegram/start\u001b[0m');
+
+for (const [page, formKey, role, retired] of VERIFY_CASES) {
+  const file = path.join(ROOT, 'site', page);
+  if (!fs.existsSync(file)) { bad(`${page}: missing`); continue; }
+
+  const dom = new JSDOM(fs.readFileSync(file, 'utf8'), {
+    url: 'https://www.orderaddisbites.com/' + page,
+    runScripts: 'outside-only', pretendToBeVisual: true
+  });
+  const w = dom.window;
+  w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  for (const js of ['links.config.js', 'ab-api.js']) {
+    w.eval(fs.readFileSync(path.join(ROOT, 'site/assets/js', js), 'utf8'));
+  }
+  if (!w.ABApi) { bad(`${page}: ABApi did not load`); continue; }
+
+  const form = w.document.querySelector(`form[data-api-form="${formKey}"]`);
+  if (!form) { bad(`${page}: no form[data-api-form="${formKey}"]`); continue; }
+
+  /* none of the retired SMS machinery may survive in the markup */
+  if (form.querySelector('[data-otp-send]') || form.querySelector('[name="code"]')) {
+    bad(`${page}: still contains an SMS one-time-code field`);
+  } else ok(`${page}: no SMS one-time-code field (data-otp / name="code" gone)`);
+
+  if (!form.hasAttribute('data-verify-only')) bad(`${page}: not marked data-verify-only`);
+  else ok(`${page}: marked data-verify-only (verification is the submission)`);
+
+  if (!form.querySelector('[data-telegram-start]')) bad(`${page}: no Telegram verification control`);
+  else ok(`${page}: has a Telegram verification control`);
+
+  if (form.querySelector('[name="emergency_name"]') || form.querySelector('[name="emergency_phone"]')) {
+    bad(`${page}: emergency-contact field(s) are still present`);
+  } else ok(`${page}: no emergency-contact fields`);
+
+  /* Capture the body telegramStart() would actually send. jsdom has no fetch
+     and telegramStart() calls the module-internal `call()`, so we stub fetch
+     (the one seam every request passes through) and read init.body. */
+  const sent = [];
+  w.fetch = (url, init) => {
+    sent.push({ url: String(url), body: init && init.body ? JSON.parse(init.body) : null });
+    return Promise.resolve({
+      ok: true, status: 200,
+      text: () => Promise.resolve('{"session_id":"s","poll_secret":"p","telegram_url":"https://t.me/x","expires_in_seconds":600}')
+    });
+  };
+  fill(form, w);
+  const values = w.ABApi.zip(form);
+  values.role = role;
+  await w.ABApi.telegramStart(values);
+  const body = sent.length ? sent[sent.length - 1].body : null;
+
+  const path0 = '/api/auth/telegram/start';
+  if (!sent.length || !String(sent[0].url).includes(path0)) {
+    bad(`${page}: telegramStart() did not POST ${path0}`); continue;
+  }
+  const schema = bodySchema(path0);
+  if (!schema) { bad(`${page}: ${path0} is not a POST route in the schema`); continue; }
+  if (!body) { bad(`${page}: telegramStart() sent no body`); continue; }
+  ok(`${page} → POST ${path0}`);
+
+  const props = schema.properties || {};
+  const required = schema.required || [];
+  const missing = required.filter((k) => body[k] === undefined || body[k] === '');
+  if (missing.length) bad(`${page}: missing REQUIRED field(s): ${missing.join(', ')}`);
+  else ok(`${page}: all ${required.length} required field(s) present`);
+
+  const wrongType = [], unknown = [];
+  for (const [k, v] of Object.entries(body)) {
+    if (v === undefined) continue;
+    if (!props[k]) { unknown.push(k); continue; }
+    if (!typeOk(v, props[k])) {
+      const t = (deref(props[k]).type) || '?';
+      wrongType.push(`${k}=${JSON.stringify(v)} (want ${t})`);
+    }
+  }
+  if (wrongType.length) bad(`${page}: type mismatch — ${wrongType.join('; ')}`);
+  else ok(`${page}: types valid for telegram/start`);
+  if (unknown.length) bad(`${page}: field(s) NOT in the schema: ${unknown.join(', ')}`);
+  else ok(`${page}: no stray fields`);
+
+  /* The courier sign-up collects fields the old OTP endpoint never saw. Every
+     one the person filled must survive into the verification request. */
+  if (page === 'courier-signup.html') {
+    const carried = ['name', 'sub_city', 'vehicle_type', 'email', 'telecom_provider',
+      'days_available', 'peak_window', 'license_valid', 'start_availability',
+      'referral_code', 'background_check_accepted'];
+    const dropped = carried.filter((k) => body[k] === undefined);
+    if (dropped.length) bad(`${page}: typed answer(s) DROPPED from the request: ${dropped.join(', ')}`);
+    else ok(`${page}: all ${carried.length} typed profile field(s) ride along`);
+
+    if (props.vehicle_type && props.vehicle_type.enum && !props.vehicle_type.enum.includes(body.vehicle_type)) {
+      bad(`${page}: vehicle_type="${body.vehicle_type}" not in [${props.vehicle_type.enum.join(', ')}]`);
+    }
+  }
+
+  /* The retired endpoint must be gone from both code and markup paths. */
+  const built = (() => { try { return w.ABApi.build(formKey, values); } catch (e) { return null; } })();
+  if (built) bad(`${page}: build("${formKey}") still produces ${built.path} — the retired OTP transform is reachable`);
+  else ok(`${page}: the retired OTP transform (${retired}) is unreachable`);
+
+  const raw = fs.readFileSync(file, 'utf8');
+  if (raw.includes(retired)) bad(`${page}: markup still references ${retired}`);
+  else ok(`${page}: markup no longer references ${retired}`);
 }
 
 console.log(fails === 0

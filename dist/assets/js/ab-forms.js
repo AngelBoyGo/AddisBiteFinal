@@ -7,16 +7,31 @@
 
    HTML contract (emitted by tools/build-pages.mjs):
      <form data-api-form="customer.register" data-success-url="...">
-       - data-api-form   key into ABApi.formMap (e.g. courier.login)
+       - data-api-form    key into ABApi.formMap (e.g. customer.login)
        - data-success-url where to go on success
-       - data-otp        marks a two-step phone form (send code, then verify)
-     <button type="button" data-otp-send data-otp-phone="f-phone">Send code</button>
+       - data-verify-only verification IS the submission: the form carries no
+                          submit button, so Enter and the submit event are both
+                          routed to the verification control instead of
+                          API.build()/API.call().
      <button type="button" data-telegram-start data-telegram-role="driver">Continue with Telegram</button>
      <span data-telegram-status hidden></span>
+     <div data-email-code-block hidden>  <button data-email-code-send>…</button>
+       <input data-email-code-input /> <span data-email-code-status></span></div>
 
-   data-telegram-start marks the SECOND verification route. Nothing is typed:
-   the person taps a Telegram deep link and the API returns the session token
-   through the poll, so that path never needs a code field.
+   There is NO one-time-code (SMS) path any more, and nothing emits data-otp.
+   It was removed because /api/auth/send-otp only ever delivered to a single
+   allowlisted number, so it could not onboard anyone else. Verification now has
+   exactly two routes:
+
+     1. Telegram (LIVE) — data-telegram-start. Nothing is typed: the person taps
+        a deep link, the API creates/opens the account, and the session token
+        arrives through the poll. Never needs a code field.
+     2. An emailed code (NOT LIVE) — data-email-code-*. Ships hidden and is
+        unhidden only when api.emailCode.enabled is true, because the backend
+        has no email provider yet (see links.config.js for the endpoint pair).
+
+   Because a data-verify-only form has no submit button, its ONLY completion
+   path is a verification control — an OTP payload can never be built from it.
 
    Error handling: FastAPI returns 422 with
      {"detail":[{"loc":["body","email"],"msg":"Field required"}]}
@@ -130,10 +145,6 @@
       if (!bad && el.dataset.digits) {
         bad = String(el.value).replace(/\D/g, '').length < Number(el.dataset.digits);
       }
-      if (!bad && el.getAttribute('data-otp-sent-check') === 'true') {
-        bad = form.dataset.otpSent !== '1';
-      }
-
       if (bad) {
         okAll = false;
         var msg = el.type === 'checkbox' ? 'Please tick this to continue.'
@@ -162,62 +173,6 @@
     return okAll;
   }
 
-  /* --------------------------------------------------------------- OTP */
-  /* Courier sign-up and courier sign-in are phone + one-time code. The code is
-     requested first, then submitted with the rest of the form in one call —
-     /api/auth/driver-phone-signup and /api/auth/phone-login both take the code
-     alongside the profile fields. */
-  function wireOtp(form) {
-    var btn = form.querySelector('[data-otp-send]');
-    var codeInput = form.querySelector('[name="code"]');
-    if (!btn || !codeInput) return;
-
-    var cooldown = 0;
-    var timer = null;
-
-    function phoneValue() {
-      var name = btn.getAttribute('data-otp-phone') || 'phone';
-      var el = form.querySelector('[name="' + name + '"]');
-      return el ? el.value : '';
-    }
-
-    function tick() {
-      if (cooldown <= 0) {
-        clearInterval(timer); timer = null;
-        btn.disabled = false;
-        btn.textContent = btn.dataset.label || 'Send code';
-        return;
-      }
-      cooldown -= 1;
-      btn.textContent = 'Resend in ' + cooldown + 's';
-    }
-
-    btn.addEventListener('click', function () {
-      var phone = phoneValue();
-      if (!phone || String(phone).replace(/\D/g, '').length < 9) {
-        var phoneEl = form.querySelector('[name="' + (btn.getAttribute('data-otp-phone') || 'phone') + '"]');
-        if (phoneEl) { markError(phoneEl, 'Enter your phone number first.'); phoneEl.focus(); }
-        return;
-      }
-      if (!btn.dataset.label) btn.dataset.label = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Sending…';
-      say(form, 'Sending your code to ' + API.normPhone(phone) + '…', 'info');
-
-      API.sendOtp(phone).then(function () {
-        form.dataset.otpSent = '1';
-        codeInput.focus();
-        say(form, 'Code sent. Enter the 6 digits we just texted you.', 'ok');
-        cooldown = 45;
-        timer = setInterval(tick, 1000);
-      }).catch(function (err) {
-        btn.disabled = false;
-        btn.textContent = btn.dataset.label;
-        say(form, err.message || 'We could not send the code. Try again.', 'warn');
-      });
-    });
-  }
-
   /* ----------------------------------------------------------- Telegram */
   /* The SECOND way to verify the same account (ABApi.telegramStart). Nothing
      is typed: the person taps a deep link in Telegram, the API creates the
@@ -227,15 +182,6 @@
      The tab is opened SYNCHRONOUSLY inside the click on purpose: an async
      window.open() is treated as programmatic and gets popup-blocked. If it
      is blocked anyway we surface the raw link instead of failing silently. */
-  function validateSkipCode(form) {
-    var code = form.querySelector('[name="code"]');
-    var was = code ? code.required : false;
-    if (code) code.required = false;   /* Telegram needs no code */
-    var ok = validate(form);
-    if (code) code.required = was;
-    return ok;
-  }
-
   function wireTelegram(form) {
     var btn = form.querySelector('[data-telegram-start]');
     if (!btn) return;
@@ -255,7 +201,7 @@
     btn.addEventListener('click', function () {
       if (btn.disabled) return;
       clearAll(form);
-      if (!validateSkipCode(form)) return;
+      if (!validate(form)) return;
 
       var values = API.zip(form);
       values.role = btn.getAttribute('data-telegram-role') || 'customer';
@@ -391,7 +337,7 @@
   }
 
   /* -------------------------------------------------------------- submit */
-  /* Shared success tail for EVERY submit path (SMS code, email code, plain
+  /* Shared success tail for EVERY submit path (Telegram, email code, plain
      form). Remembers who signed up, then follows data-success-url — or, when a
      page handles its own result, emits ab:submitted with the API payload. */
   function afterSuccess(form, name, data) {
@@ -418,7 +364,10 @@
   function wireForm(form) {
     var name = form.getAttribute('data-api-form');
     if (!name) return;
-    var isOtp = form.hasAttribute('data-otp');
+    /* Verification IS the submission on these forms: there is no submit button,
+       so the only way to complete them is a verification control (Telegram, or
+       an emailed code). See activateVerification() below. */
+    var verifyOnly = form.hasAttribute('data-verify-only');
 
     /* clear the error ring as soon as the user starts fixing things */
     Array.prototype.forEach.call(form.querySelectorAll('input,select,textarea'), function (el) {
@@ -426,23 +375,43 @@
       el.addEventListener('change', function () { if (el.getAttribute('aria-invalid') === 'true') clearError(el); });
     });
 
-    if (isOtp) wireOtp(form);
     wireTelegram(form);   /* no-ops unless the form has a Telegram button */
     wireEmailCode(form);  /* stays hidden unless api.emailCode.enabled is true */
+
+    /* The verification control that a verify-only form's Enter key and submit
+       event are routed to. Telegram is preferred because it is the live route;
+       the email block is only present-and-visible when the backend can send. */
+    function verificationControl() {
+      var emailBlock = form.querySelector('[data-email-code-block]');
+      if (emailBlock && !emailBlock.hidden) {
+        var send = emailBlock.querySelector('[data-email-code-send]');
+        if (send) return send;
+      }
+      return form.querySelector('[data-telegram-start]');
+    }
+
+    /* Click the real control rather than duplicating its logic, so Enter and a
+       mouse click follow exactly the same path and can never diverge. */
+    function activateVerification() {
+      var ctrl = verificationControl();
+      if (!ctrl) {
+        say(form, 'No verification method is available right now. Please try again later.', 'warn');
+        return;
+      }
+      clearAll(form);
+      ctrl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    }
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       if (form.getAttribute('aria-busy') === 'true') return;
       clearAll(form);
 
-      /* An OTP form must have had its code requested first, otherwise the user
-         gets a confusing 422 instead of a clear next step. */
-      if (isOtp && form.dataset.otpSent !== '1') {
-        var btn = form.querySelector('[data-otp-send]');
-        say(form, 'Tap “Send code” first — we need to text you a 6-digit code.', 'warn');
-        if (btn) btn.focus();
-        return;
-      }
+      /* A verify-only form has no submit button, so this only fires on Enter.
+         Routing it to the verification control means an OTP payload can NEVER
+         be built from this form — there is no code to send and the endpoint
+         that wanted one is gone. */
+      if (verifyOnly) { activateVerification(); return; }
 
       /* Third verification path — a code emailed to the address on the form.
          If a code was sent for THIS form and the person typed it, that code IS
@@ -454,7 +423,7 @@
       var codeEl = form.querySelector('[data-email-code-input]');
       var typed = codeEl ? String(codeEl.value || '').trim() : '';
       if (otpId && typed) {
-        if (!validateSkipCode(form)) return;
+        if (!validate(form)) return;
         form.setAttribute('aria-busy', 'true');
         busy(form, true, 'Verifying…');
         say(form, 'Checking your email code…', 'info');
@@ -479,8 +448,8 @@
       }
 
       form.setAttribute('aria-busy', 'true');
-      busy(form, true, isOtp ? 'Verifying…' : 'Sending…');
-      say(form, isOtp ? 'Checking your code…' : 'Sending…', 'info');
+      busy(form, true, 'Sending…');
+      say(form, 'Sending…', 'info');
 
       API.call(req.path, req.body)
         .then(function (data) { afterSuccess(form, name, data); })

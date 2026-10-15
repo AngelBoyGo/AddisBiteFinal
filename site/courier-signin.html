@@ -65,50 +65,24 @@
       <h1>Courier sign in</h1>
       <p class="sub">Use the mobile number you applied with. If your application is still being reviewed, we will say so here.</p>
 
-      <!-- POST /api/auth/phone-login → {phone*, code*, name, sub_city, intent}
-           Couriers sign in with a phone number + one-time code, not a password. -->
-      <form class="form" data-api-form="courier.login" data-otp
+      <!-- No password and no SMS code: a courier proves the phone they applied
+           with. Telegram is the live path; an emailed code follows once the
+           backend can send. Same endpoint as sign-up (role=driver), so an
+           approved courier and a new applicant use one verified phone. -->
+      <form class="form" data-api-form="courier.login" data-verify-only
             data-success-url="attribution.html?after=courier-signin" novalidate>
         <input type="hidden" name="intent" value="driver" />
         <p class="form-status" data-form-status hidden></p>
         <div class="field">
   <label for="f-phone">Mobile number <span class="req" aria-hidden="true">*</span></label>
   <span class="hint">The number your application was approved under.</span>
-  <span class="input-prefix otp-row" style="display:block">
+  <span class="input-prefix" style="display:block">
     <span class="pfx" aria-hidden="true">+251</span>
-    <input id="f-phone" name="phone" type="tel" required placeholder="91 234 5678"
-      autocomplete="tel" data-digits="9" inputmode="tel" />
-    <button class="btn btn-ghost" type="button" data-otp-send data-otp-phone="phone">Send code</button>
-  </span>
-</div>
-        <div class="field">
-  <label for="f-code">One-time code <span class="req" aria-hidden="true">*</span></label>
-  <span class="hint">Tap “Send code”, then type the digits we text you.</span>
-  <span class="" style="display:block">
-    
-    <input id="f-code" name="code" type="text" required
-      placeholder="6 digits" autocomplete="one-time-code"
-       inputmode="numeric"
+    <input id="f-phone" name="phone" type="tel" required
+      placeholder="91 234 5678" autocomplete="tel"
+      data-digits="9" inputmode="tel"
        />
   </span>
-</div>
-        <div class="field" data-telegram-block>
-  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or verify with Telegram</span>
-  <span class="hint">Already have Telegram on that number? Sign in without waiting for a code.</span>
-  <button class="btn btn-ghost btn-block" type="button"
-    data-telegram-start data-telegram-role="driver">Continue with Telegram</button>
-  <span class="hint" data-telegram-status hidden aria-live="polite"></span>
-</div>
-        <div class="field" data-email-code-block hidden>
-  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or send a code to my email</span>
-  <span class="hint">Prefer email? We send a code to the address on your application.</span>
-  <button class="btn btn-ghost btn-block" type="button" data-email-code-send data-email-code-role="driver">Email me a code</button>
-  <div class="field" data-email-code-step hidden style="margin-top:10px">
-    <label for="f-email-otp-code">Code from your email</label>
-    <input id="f-email-otp-code" name="email_otp_code" type="text" inputmode="numeric"
-      autocomplete="one-time-code" placeholder="6 digits" data-email-code-input />
-  </div>
-  <span class="hint" data-email-code-status hidden aria-live="polite"></span>
 </div>
         <div class="field">
   <label for="f-sub_city">Sub-city you work in</label>
@@ -128,7 +102,24 @@
     <option value="Yeka">Yeka</option>
   </select>
 </div>
-        <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
+        <div class="field" data-telegram-block>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Verify your number</span>
+  <span class="hint">Already have Telegram on that number? Nothing to wait for — tap and you are in.</span>
+  <button class="btn btn-primary btn-block btn-lg" type="button"
+    data-telegram-start data-telegram-role="driver">Sign in with Telegram</button>
+  <span class="hint" data-telegram-status hidden aria-live="polite"></span>
+</div>
+        <div class="field" data-email-code-block hidden>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or send a code to my email</span>
+  <span class="hint">Prefer email? We send a code to the address on your application.</span>
+  <button class="btn btn-ghost btn-block" type="button" data-email-code-send data-email-code-role="driver">Email me a code</button>
+  <div class="field" data-email-code-step hidden style="margin-top:10px">
+    <label for="f-email-otp-code">Code from your email</label>
+    <input id="f-email-otp-code" name="email_otp_code" type="text" inputmode="numeric"
+      autocomplete="one-time-code" placeholder="6 digits" data-email-code-input />
+  </div>
+  <span class="hint" data-email-code-status hidden aria-live="polite"></span>
+</div>
       </form>
 
       <p class="foot-note"><a href="#">Forgot your password?</a></p>

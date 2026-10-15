@@ -153,32 +153,14 @@ function fCheck({ name, label, must = false, value = 'yes' }) {
 
 function fRow(...items) { return `<div class="field-row">${items.join('\n  ')}</div>`; }
 
-/* Phone field with a "Send code" button, for the OTP (courier) flows.
-   The button is wired by ab-forms.js via data-otp-send, and the code is then
-   submitted with the rest of the form in the SAME call (the API takes the code
-   alongside the profile fields on driver-phone-signup / phone-login). */
-function phoneOtp({ name = 'phone', label = 'Mobile number', required = true, hint = '' }) {
-  const id = `f-${name}`;
-  return `<div class="field">
-  <label for="${id}">${label}${required ? ' ' + req : ''}</label>
-  ${hint ? `<span class="hint">${hint}</span>` : ''}
-  <span class="input-prefix otp-row" style="display:block">
-    <span class="pfx" aria-hidden="true">+251</span>
-    <input id="${id}" name="${name}" type="tel"${required ? ' required' : ''} placeholder="91 234 5678"
-      autocomplete="tel" data-digits="9" inputmode="tel" />
-    <button class="btn btn-ghost" type="button" data-otp-send data-otp-phone="${name}">Send code</button>
-  </span>
-</div>`;
-}
-
-/* One-time-code field shown beside a phoneOtp field. */
-function fCode() {
-  return fText({
-    name: 'code', label: 'One-time code', required: true, ph: '6 digits',
-    inputmode: 'numeric', autocomplete: 'one-time-code',
-    hint: 'Tap “Send code”, then type the digits we text you.'
-  });
-}
+/* REMOVED: the "Send code" phone field and its one-time-code field.
+   The SMS/OTP path (send-otp → driver-phone-signup / phone-login) only ever
+   delivered to a single allowlisted number, so it could not onboard anyone
+   else. Verification is now Telegram or an emailed code — see telegramAlt()
+   and emailCodeAlt() below. Nothing emits data-otp any more.
+   Bonus: the old markup put display:block on a .otp-row element whose CSS
+   expects flex, which is what made the "+251" prefix collide with the number.
+   A plain fText prefix field renders correctly. */
 
 /* The SECOND way to verify the same account: Telegram.
    Unlike the code path, nothing is typed — the person taps a deep link and the
@@ -187,12 +169,15 @@ function fCode() {
    own values (name, phone, sub_city, vehicle_type …) and sends them with the
    verification request, because /api/auth/telegram/start creates the account on
    the tap. */
-function telegramAlt({ role = 'customer', note = '' } = {}) {
+function telegramAlt({ role = 'customer', note = '', primary = false, label = '' } = {}) {
+  const cls = primary ? 'btn btn-primary btn-block btn-lg' : 'btn btn-ghost btn-block';
+  const text = label || (primary ? 'Submit with Telegram' : 'Continue with Telegram');
+  const heading = primary ? 'Verify your number' : 'Or verify with Telegram';
   return `<div class="field" data-telegram-block>
-  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">Or verify with Telegram</span>
+  <span class="hint" style="display:block;font-weight:700;color:var(--text-2);margin:2px 0 8px">${heading}</span>
   ${note ? `<span class="hint">${note}</span>` : ''}
-  <button class="btn btn-ghost btn-block" type="button"
-    data-telegram-start data-telegram-role="${role}">Continue with Telegram</button>
+  <button class="${cls}" type="button"
+    data-telegram-start data-telegram-role="${role}">${text}</button>
   <span class="hint" data-telegram-status hidden aria-live="polite"></span>
 </div>`;
 }
@@ -383,13 +368,19 @@ const courierSignup = shell({
       <h1>Sign up to deliver</h1>
       <p class="sub">Fill this in today. A dispatcher reviews every application by hand, then we will contact you to collect your ID and licence.</p>
 
-      <!-- Couriers are PHONE + ONE-TIME CODE on this API:
-           POST /api/auth/send-otp?phone=  then
-           POST /api/auth/driver-phone-signup {phone*, code*, name*, ...}
-           Every field below exists in that schema, so nothing typed here is
-           silently discarded. ID / licence / payout details are collected by a
-           dispatcher on the phone — exactly how the business runs today. -->
-      <form class="form" data-api-form="courier.register" data-otp
+      <!-- There is NO one-time code here any more. The old path
+           (send-otp → driver-phone-signup) only delivered SMS to one
+           allowlisted number, so it could not onboard anyone else.
+           Verification is now Telegram (live) or an emailed code (once the
+           backend can send). The request that creates this account is
+           POST /api/auth/telegram/start {phone*, name, sub_city, role,
+             vehicle_type, email, telecom_provider, days_available,
+             peak_window, license_valid, start_availability, referral_code,
+             background_check_accepted}
+           — the form sends every field the schema accepts, so nothing typed is
+           silently discarded. ID / licence / payout details are still
+           collected by a dispatcher on the phone, as the business runs today. -->
+      <form class="form" data-api-form="courier.register" data-verify-only
             data-success-url="attribution.html?after=courier-signup" novalidate>
         <input type="hidden" name="account_ref" data-account-ref value="" />
         ${status()}
@@ -397,16 +388,12 @@ const courierSignup = shell({
         <fieldset>
           <legend>About you</legend>
           ${fText({ name: 'name', label: 'Full name', required: true, ph: 'Dawit Haile', autocomplete: 'name' })}
-          ${phoneOtp({ name: 'phone', label: 'Mobile number', hint: 'We text a code to this number. It also becomes your sign-in.' })}
-          ${fCode()}
-          ${telegramAlt({ role: 'driver', note: 'No code to type. We open Telegram, you tap Start, and your application is created — everything you filled in above comes with it.' })}
-          ${emailCodeAlt({ role: 'driver', note: 'We email a 6-digit code to the address you gave above.' })}
-          ${fText({ name: 'email', label: 'Email address', ph: 'you@example.com', autocomplete: 'email', hint: 'Optional — but it is how payout statements reach you.' })}
+          ${fText({ name: 'phone', label: 'Mobile number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678', autocomplete: 'tel', digits: 9, inputmode: 'tel', hint: 'This is also your sign-in. We verify it with Telegram — no code is texted.' })}
+          ${fText({ name: 'email', label: 'Email address', ph: 'you@example.com', autocomplete: 'email', hint: 'Optional today — but it is how payout statements reach you, and how the emailed-code option works.' })}
           ${fSelect({ name: 'sub_city', label: 'Sub-city you want to work in', required: true, options: SUB_CITIES, hint: 'You will only be offered jobs inside this area.' })}
           ${fSelect({
             name: 'telecom_provider', label: 'Which network is that number on?',
-            options: [{ v: 'ethio', l: 'Ethio Telecom' }, { v: 'safaricom', l: 'Safaricom' }],
-            hint: 'Helps keep code delivery reliable.'
+            options: [{ v: 'ethio', l: 'Ethio Telecom' }, { v: 'safaricom', l: 'Safaricom' }]
           })}
         </fieldset>
 
@@ -467,23 +454,26 @@ const courierSignup = shell({
         </fieldset>
 
         <fieldset>
-          <legend>Emergency contact &amp; referrals</legend>
-          ${fRow(
-            fText({ name: 'emergency_name', label: 'Emergency contact name', required: true, ph: 'Full name' }),
-            fText({ name: 'emergency_phone', label: 'Emergency contact number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678' })
-          )}
+          <legend>Referrals</legend>
           ${fText({ name: 'referral_code', label: 'Were you referred by an existing courier?', ph: 'Their name or code', hint: 'It earns them the referral bonus and speeds up your application.' })}
-          <p class="hint" style="margin:16px 0 0">A dispatcher collects your ID, licence and payout account when they call — so there is nothing to photograph or upload today.</p>
+          <p class="hint" style="margin:16px 0 0">A dispatcher collects your emergency contact, ID, licence and payout account when they call — so there is nothing to photograph or upload today.</p>
         </fieldset>
 
         <fieldset>
           <legend>Before you submit</legend>
           ${fCheck({ name: 'background_check_accepted', label: 'I am 18 or older, I agree to a background check, and I understand a dispatcher will contact me to collect my ID, licence and vehicle papers.', must: true })}
           ${fCheck({ name: 'confirm_terms', label: 'I agree to the <a href="#">courier terms</a> and the <a href="#">privacy policy</a>.', must: true })}
-          ${fCheck({ name: 'marketing_opt_in', label: 'Send me dispatch updates on Telegram or SMS.', value: 'yes' })}
+          ${fCheck({ name: 'marketing_opt_in', label: 'Send me dispatch updates on Telegram.', value: 'yes' })}
         </fieldset>
 
-        <button class="btn btn-primary btn-block btn-lg" type="submit">Submit application</button>
+        <!-- Submitting IS verifying, so there is no separate "Submit" button
+             and no code field: the application is created the moment the phone
+             is proven. ab-forms.js also routes an Enter-key submit here. -->
+        <fieldset>
+          <legend>Verify your number and submit</legend>
+          ${telegramAlt({ primary: true, role: 'driver', label: 'Submit application with Telegram', note: 'The fastest path. We open Telegram, you tap Start, and your application is created — everything you typed above comes with it. Nothing to copy or type.' })}
+          ${emailCodeAlt({ role: 'driver', note: 'No Telegram? We email a 6-digit code instead once email sending is switched on.' })}
+        </fieldset>
       </form>
 
       <p class="foot-note">Already approved? <a href="courier-signin.html">Courier sign in</a></p>
@@ -517,18 +507,18 @@ const courierSignin = shell({
       <h1>Courier sign in</h1>
       <p class="sub">Use the mobile number you applied with. If your application is still being reviewed, we will say so here.</p>
 
-      <!-- POST /api/auth/phone-login → {phone*, code*, name, sub_city, intent}
-           Couriers sign in with a phone number + one-time code, not a password. -->
-      <form class="form" data-api-form="courier.login" data-otp
+      <!-- No password and no SMS code: a courier proves the phone they applied
+           with. Telegram is the live path; an emailed code follows once the
+           backend can send. Same endpoint as sign-up (role=driver), so an
+           approved courier and a new applicant use one verified phone. -->
+      <form class="form" data-api-form="courier.login" data-verify-only
             data-success-url="attribution.html?after=courier-signin" novalidate>
         <input type="hidden" name="intent" value="driver" />
         ${status()}
-        ${phoneOtp({ name: 'phone', label: 'Mobile number', hint: 'The number your application was approved under.' })}
-        ${fCode()}
-        ${telegramAlt({ role: 'driver', note: 'Already have Telegram on that number? Sign in without waiting for a code.' })}
-        ${emailCodeAlt({ role: 'driver', note: 'Prefer email? We send a code to the address on your application.' })}
+        ${fText({ name: 'phone', label: 'Mobile number', type: 'tel', required: true, prefix: '+251', ph: '91 234 5678', autocomplete: 'tel', digits: 9, inputmode: 'tel', hint: 'The number your application was approved under.' })}
         ${fSelect({ name: 'sub_city', label: 'Sub-city you work in', options: SUB_CITIES, hint: 'Usually saved for you — check it is right.' })}
-        <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
+        ${telegramAlt({ primary: true, role: 'driver', label: 'Sign in with Telegram', note: 'Already have Telegram on that number? Nothing to wait for — tap and you are in.' })}
+        ${emailCodeAlt({ role: 'driver', note: 'Prefer email? We send a code to the address on your application.' })}
       </form>
 
       <p class="foot-note"><a href="#">Forgot your password?</a></p>

@@ -247,34 +247,44 @@ console.log('\n\u001b[1mFunnel: does the sign-up / sign-in flow actually behave?
   check(hit(logs, '/api/auth/register'), 'customer signup: posted to /api/auth/register');
 }
 
-/* ----------------------------------------------- 2. courier OTP enforcement */
+/* ------------------------------------------ 2. courier verifies, not SMS-OTP */
+/* Courier sign-up and sign-in are `data-verify-only`: verification IS the
+   submission. There is no Send-code button, no code field, and no submit
+   button — so an SMS one-time-code payload can never be built. These checks
+   pin that down, then prove the Enter-key path is routed to Telegram. */
 {
   const { w, navAttempts, logs } = open('courier-signup.html');
   const form = w.document.querySelector('form[data-api-form="courier.register"]');
   check(!!form, 'courier signup: form is wired');
-  check(!!form.querySelector('[data-otp-send]'), 'courier signup: has a Send code button');
+  check(form.hasAttribute('data-verify-only'), 'courier signup: marked data-verify-only');
+  check(!form.querySelector('[data-otp-send]'), 'courier signup: no Send-code button (OTP removed)');
+  check(!form.querySelector('[name="code"]'), 'courier signup: no one-time-code field (OTP removed)');
+  check(!form.querySelector('input[name="emergency_name"], input[name="emergency_phone"]'),
+    'courier signup: emergency contact removed');
+  const tg = form.querySelector('[data-telegram-start]');
+  check(!!tg, 'courier signup: Telegram verification control present');
+  check((tg.getAttribute('data-telegram-role') || '') === 'driver',
+    'courier signup: Telegram control verifies as role=driver');
+  check(!form.querySelector('button[type="submit"]'),
+    'courier signup: no submit button (verification is the only completion path)');
 
-  setValues(form, {
-    name: 'Dawit Haile', phone: '911234567', code: '123456', sub_city: 'Bole',
-    vehicle_type: 'motorbike', emergency_name: 'Sara', emergency_phone: '911111111',
-  });
-  form.querySelectorAll('[data-must-check]').forEach((c) => { c.checked = true; });
-
-  submit(w, form);
+  /* Enter in a text field submits the form. That MUST route to the Telegram
+     control — never to API.build('courier.register'). */
+  let clicked = 0;
+  tg.addEventListener('click', () => { clicked += 1; });
+  form.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
   await wait(60);
-  const said = (form.querySelector('[data-form-status]') || {}).textContent || '';
-  check(/send code/i.test(said), `courier signup: submit before code is refused ("${said.slice(0, 46)}…")`);
-  check(navAttempts.length === 0, 'courier signup: no navigation before the code is requested');
+  check(clicked === 1, 'courier signup: Enter-key submit is routed to the Telegram control');
+  check(!hit(logs, '/api/auth/driver-phone-signup'),
+    'courier signup: no request to the retired driver-phone-signup endpoint');
+  check(!hit(logs, '/api/auth/send-otp'), 'courier signup: no request to send-otp');
+  check(navAttempts.length === 0, 'courier signup: nothing navigates before verification');
 
-  form.querySelector('[data-otp-send]').dispatchEvent(new w.Event('click', { bubbles: true }));
-  await wait(900);
-  check(form.dataset.otpSent === '1', 'courier signup: code requested (send-otp called)');
-  check(hit(logs, '/api/auth/send-otp'), 'courier signup: send-otp uses the phone query parameter');
-
-  submit(w, form);
-  await wait(900);
-  check(hit(logs, '/api/auth/driver-phone-signup'), 'courier signup: posted to /api/auth/driver-phone-signup');
-  check(navAttempts.length > 0, 'courier signup: navigates onward');
+  /* And an incomplete form is still caught: validation runs inside the control. */
+  tg.dispatchEvent(new w.Event('click', { bubbles: true }));
+  await wait(60);
+  check(form.querySelectorAll('.field-error').length > 0,
+    'courier signup: incomplete form is blocked with field errors');
 }
 
 /* ------------------------------------------------------ 3. sign-in routing */
@@ -297,13 +307,90 @@ console.log('\n\u001b[1mFunnel: does the sign-up / sign-in flow actually behave?
 {
   const { w, logs } = open('courier-signin.html');
   const form = w.document.querySelector('form[data-api-form="courier.login"]');
-  setValues(form, { phone: '911234567' });
-  form.querySelector('[data-otp-send]').dispatchEvent(new w.Event('click', { bubbles: true }));
-  await wait(900);
-  setValues(form, { code: '123456' });
-  submit(w, form);
-  await wait(900);
-  check(hit(logs, '/api/auth/phone-login'), 'courier signin: posts to /api/auth/phone-login (phone + OTP)');
+  check(!!form, 'courier signin: form is wired');
+  check(form.hasAttribute('data-verify-only'), 'courier signin: marked data-verify-only');
+  check(!form.querySelector('[data-otp-send]'), 'courier signin: no Send-code button (OTP removed)');
+  check(!form.querySelector('[name="code"]'), 'courier signin: no one-time-code field (OTP removed)');
+  const tg = form.querySelector('[data-telegram-start]');
+  check(!!tg && (tg.getAttribute('data-telegram-role') || '') === 'driver',
+    'courier signin: Telegram control verifies as role=driver');
+
+  setValues(form, { phone: '911234567', sub_city: 'Bole' });
+  let clicked = 0;
+  tg.addEventListener('click', () => { clicked += 1; });
+  form.dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await wait(60);
+  check(clicked === 1, 'courier signin: Enter-key submit is routed to the Telegram control');
+  check(!hit(logs, '/api/auth/phone-login'),
+    'courier signin: no request to the retired phone-login endpoint');
+  check(!hit(logs, '/api/auth/send-otp'), 'courier signin: no request to send-otp');
+}
+
+/* ------------------------- 3b. Telegram verification, live request observed */
+/* dryRun must be OFF so `call()` reaches fetch, letting us watch the real
+   start + poll round-trip and prove the bearer token is captured. This is the
+   whole point of the Telegram route: no code is typed, so the ONLY proof that
+   it works is that polling yields a session token that is then stored. */
+{
+  const { w } = openLive('courier-signup.html');
+  const form = w.document.querySelector('form[data-api-form="courier.register"]');
+  const tg = form.querySelector('[data-telegram-start]');
+
+  setValues(form, {
+    name: 'Dawit Haile', phone: '911234567', sub_city: 'Bole',
+    vehicle_type: 'motorbike', email: 'dawit@example.com',
+  });
+  form.querySelectorAll('[data-must-check]').forEach((c) => { c.checked = true; });
+
+  /* Capture every request; keep it all offline with canned replies. */
+  const seen = [];
+  let polls = 0;
+  w.fetch = function (url, init) {
+    const body = init && init.body ? JSON.parse(init.body) : null;
+    seen.push({ url: String(url), body, headers: new w.Headers((init && init.headers) || {}) });
+    if (String(url).includes('/api/auth/telegram/start')) {
+      return Promise.resolve(stubResponse(200, JSON.stringify({
+        session_id: 'sess_1', poll_secret: 'poll_1',
+        telegram_url: 'https://t.me/AddisBitesBot?start=abc', expires_in_seconds: 600,
+      })));
+    }
+    if (String(url).includes('/api/auth/telegram/poll')) {
+      polls += 1;
+      /* first poll: still waiting; second poll: verified + the token */
+      return Promise.resolve(stubResponse(200, polls < 2
+        ? JSON.stringify({ status: 'waiting' })
+        : JSON.stringify({ status: 'verified', session_token: 'tok_telegram_xyz', user: { role: 'driver' } })));
+    }
+    return Promise.resolve(stubResponse(404, '{"detail":"unexpected"}'));
+  };
+  /* window.open must return something usable so wireTelegram does not treat it
+     as a blocked popup — jsdom's returns null, which is the blocked branch. */
+  w.open = () => ({ location: { href: '' }, close() {} });
+
+  tg.dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await wait(5600);   /* > two 2500ms poll ticks */
+
+  const start = seen.find((s) => s.url.includes('/api/auth/telegram/start'));
+  check(!!start, 'telegram: POST /api/auth/telegram/start was sent');
+  check(!!start && start.body.phone === '+251911234567',
+    `telegram: the typed phone is normalised (${start && start.body.phone})`);
+  check(!!start && start.body.role === 'driver', 'telegram: role=driver is sent');
+  /* The courier's typed answers must ride along on the verification request. */
+  check(!!start && start.body.name === 'Dawit Haile' && start.body.sub_city === 'Bole' &&
+        start.body.vehicle_type === 'motorbike',
+    'telegram: typed profile answers are carried on the start request');
+  check(!!start && start.headers.get('Authorization') === null,
+    'telegram: start is anonymous (auth:false — no stale token replayed)');
+
+  const poll = seen.find((s) => s.url.includes('/api/auth/telegram/poll'));
+  check(!!poll, 'telegram: /api/auth/telegram/poll is polled');
+  check(!!poll && poll.body.session_id === 'sess_1' && poll.body.poll_secret === 'poll_1',
+    'telegram: poll is addressed with session_id + poll_secret');
+
+  /* The token arrives IN the poll response, so it must be stored on success. */
+  const key = 'addisbites_user_token:' + encodeURIComponent(w.location.origin);
+  check(w.localStorage.getItem(key) === 'tok_telegram_xyz',
+    'telegram: the session token from the poll response is stored (signs the courier in)');
 }
 
 /* ------------------------------------------ 4. partner consent is enforced */

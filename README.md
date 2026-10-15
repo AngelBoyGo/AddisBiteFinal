@@ -314,16 +314,28 @@ data is mock data in the browser, seeded from `ab-seed.js`.
 |---|---|---|
 | Customer sign-up | `POST /api/auth/register` | email + password (+ name, phone, role) |
 | Customer sign-in | `POST /api/auth/login` | email + password |
-| Courier sign-up | `POST /api/auth/driver-phone-signup` | phone + **OTP** |
-| Courier sign-in | `POST /api/auth/phone-login` | phone + **OTP** |
+| Courier sign-up | `POST /api/auth/telegram/start` | phone + Telegram tap (no code) |
+| Courier sign-in | `POST /api/auth/telegram/start` | phone + Telegram tap (no code) |
 | Dispatch sign-in | `POST /api/auth/operator-login` | username + password |
 | Restaurant partner | `POST /api/public/listing-intent` | consent + signed name |
 | Attribution / waitlist | `POST /api/waitlist` | name + phone + `heard_from` |
 
-OTP is requested by `POST /api/auth/send-otp?phone=…` — **the phone goes in the
-query string, not the body.** Customer identity is email-based and courier
-identity is phone-based; that asymmetry was taken from the existing backend on
-purpose, so credentials already in the database keep working.
+The two courier pages are **`data-verify-only`**: verification *is* the
+submission. They carry no submit button and no code field, so the only way to
+complete them is a verification control — Telegram today, an emailed code once
+the backend can send. Every field the applicant typed rides along on the
+verification request, so nothing is silently dropped.
+
+The SMS one-time-code courier path (`/api/auth/send-otp` →
+`/api/auth/driver-phone-signup` and `/api/auth/phone-login`) is **retired**. It
+required a code that `send-otp` could only ever deliver to one allowlisted
+number, so it could not onboard anyone else. Those transforms now throw with the
+reason rather than silently returning a body, and `verify-contract.mjs` fails the
+build if either page ever references those endpoints again.
+
+Customer identity is email-based and courier identity is phone-based; that
+asymmetry was taken from the existing backend on purpose, so credentials already
+in the database keep working.
 
 The contract is not invented from scratch: `tools/openapi.snapshot.json` is the
 live OpenAPI document, and `tools/verify-contract.mjs` fails the build if a form
@@ -342,14 +354,14 @@ code** — the front end is wired and verified against the live contract.
 |---|---|
 | **CORS allowlist** | Solved by the `/api/*` Worker proxy. The browser is now same-origin, so there is no preflight and no allowlist to change. Verified live. |
 | **Cookie / SameSite** | Not applicable. Auth is a Bearer token in a header, not a cookie, so `SameSite` never enters the picture. |
-| **`role` value** | Confirmed live. `customer` is accepted and returns a session. `courier` is rejected with "Unsupported signup role"; the courier flow uses `driver` through the OTP path. |
+| **`role` value** | Confirmed live. `customer` is accepted and returns a session. `courier` is rejected with "Unsupported signup role"; the courier flow verifies as `driver` through `/api/auth/telegram/start`. |
 
 ### Still open — real gates before public sign-ups
 
 | # | Blocker | Why it matters |
 |---|---|---|
 | 1 | **SMS allowlist is one number wide** | AfroMessage is in beta behind `SMS_BETA_ALLOWLIST`. `POST /api/auth/send-otp` returns `{"sent":true,"method":"sms"}` for an allowlisted number and `"SMS delivery is temporarily unavailable"` for everyone else. **As configured right now, exactly one phone can receive a courier OTP.** Widen the list (Render env var, no redeploy of this site needed) before advertising courier sign-ups. |
-| 2 | **Telegram is the working courier path** | `/api/auth/telegram/start` returns a `telegram_url` + `session_id` + `poll_secret` for any number, allowlisted or not — verified live against `@AddisBiteMenuBot`. This is the path to lead with while the SMS allowlist is narrow. The front end still calls `send-otp` first, so this is a **front-end gap to close**, not a backend one. |
+| 2 | **Telegram is the working courier path** | `/api/auth/telegram/start` returns a `telegram_url` + `session_id` + `poll_secret` for any number, allowlisted or not — verified live against `@AddisBiteMenuBot`. This is now the path courier sign-up and sign-in both use; the old `send-otp` front-end step is gone. |
 | 3 | **Lock down the docs surface** | `/openapi.json`, `/docs`, `/redoc` and `/api/health` are public. `/api/health` **on the `api.` host** leaks ops config unauthenticated (`outreach_admin_url`, `github_product_token`, `telegram_group_configured`). The Render host's health endpoint leaks nothing (`status`/`db`/`release` only). |
 | 4 | **`SMS_DAILY_CAP`** | Currently `20`. Fine for a pilot, too low for a launch day. |
 | 5 | **Repo visibility** | `AddisBiteFinal` is **public** and therefore also publishes the 528-endpoint OpenAPI snapshot (`tools/openapi.snapshot.json`), 26 ops-console/admin source files, and the built dashboards. Recommend private, or drop the snapshot from the repo. || 6 | **The `api.` hostname strips `access-control-allow-origin`** | Observed at the Cloudflare edge in front of the 227-path Command API. Does not affect us (we use the Render host and the proxy), but it is a real misconfiguration on that zone. |
@@ -358,14 +370,14 @@ code** — the front end is wired and verified against the live contract.
 
 ### Account verification — two routes, one live today
 
-The courier forms (and any surface that needs a verified phone) offer **two ways
-to verify the same account**:
+The courier forms offer **two ways to verify the same account**. (The old SMS
+one-time code is retired — see §7.)
 
 | Route | Status | Why |
 |---|---|---|
 | **Telegram** | **LIVE** | `POST /api/auth/telegram/start` → `{session_id, poll_secret, telegram_url, expires_in_seconds:600}`, then `POST /api/auth/telegram/poll` every 2500 ms. The bearer token arrives **in the poll response** as `{status:"verified", session_token, user}` — there is no second exchange call. `404`/`410` means expired (confirmed live: a link left untapped for 10 min returns `410 "Telegram verification expired"`). Nothing to type, and no bot token is needed from us — the API mints the deep link. |
 | **Emailed code** | **NOT LIVE — backend work needed** | The API has **no email provider configured**. `GET /api/admin/settings/integrations` lists exactly: Chapa payments, Chapa webhook, Push, Sentry, OpenRouter, Telegram ops feed. `GET /api/admin/health` agrees (MongoDB, Chapa, AfroMessage SMS, OpenRouter, Sentry, Google geocoding, Telegram). The only code-sending endpoint is `POST /api/auth/password-reset/request`, which accepts `channel:"email"` and returns `202` + a `reset_id` — but that is wired to **password reset**, so reusing it to verify an account would change the person's password. |
-| **SMS code** | One number only | AfroMessage is in beta behind `SMS_BETA_ALLOWLIST`. Non-allowlisted numbers get `"SMS delivery is temporarily unavailable"`. |
+| **SMS code** | **Retired** | Never offered as a choice: AfroMessage is in beta behind `SMS_BETA_ALLOWLIST`, so `send-otp` reached exactly one number. The courier forms no longer contain a code field, a Send-code button, or a submit button. |
 
 **To switch email codes on** the Render service needs (a) an email provider key
 and (b) this endpoint pair, which deliberately mirrors the Telegram one:
