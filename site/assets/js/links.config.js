@@ -22,8 +22,22 @@ window.AB_LINKS = {
    * Prefer an api.* subdomain of your own domain — it keeps session cookies
    * same-site, which Safari requires.                                      */
   api: {
-    base:        'https://api.orderaddisbites.com',
-    fallbackBase:'https://api-orderaddisbites.onrender.com', // if the custom domain lags
+    /* IMPORTANT — the two hostnames are NOT the same service (verified live
+     * 2026-10-15 against each /openapi.json):
+     *
+     *   api.orderaddisbites.com            227 paths — "Addis Bites Command API"
+     *                                      NO /api/auth/register, /api/auth/send-otp,
+     *                                      /api/waitlist, /api/public/listing-intent,
+     *                                      /api/auth/driver-phone-signup  (404)
+     *   api-orderaddisbites.onrender.com   528 paths — the main app; all of the above
+     *                                      exist (422 on an empty body)
+     *
+     * So the api. custom domain in front of Render terminates at a DIFFERENT
+     * service than the one that owns the sign-up routes. Forms therefore point
+     * at the host that actually has them. When the api. domain is repointed at
+     * the main service in Render, swap this one line back.                   */
+    base:        'https://api-orderaddisbites.onrender.com',
+    fallbackBase:'https://api.orderaddisbites.com',
     timeoutMs:   20000,
     /* FastAPI session cookie; cross-origin calls must opt in */
     credentials: 'include',

@@ -52,6 +52,15 @@ else
   echo "  (ops-admin/dist not built yet — /admin/ will 404 until it is)"
 fi
 
+# Customer + Courier role apps, so all four surfaces are clickable here too.
+if [ -d apps ]; then
+  echo "▸ Customer + Courier apps   →  preview/app/"
+  mkdir -p preview/app
+  cp apps/*.jsx apps/*.css apps/*.js preview/app/
+  cp apps/customer.html preview/app/customer.html
+  cp apps/courier.html  preview/app/courier.html
+fi
+
 # Static preview note so nobody mistakes this for production.
 cat > preview/robots.txt <<'EOF'
 User-agent: *

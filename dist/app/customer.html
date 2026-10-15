@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en" class="c-html">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Addis Bites</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=mv8px3rj">
+<link rel="stylesheet" href="courier.css?v=mv8px3rj">
+<link rel="stylesheet" href="customer.css?v=mv8px3rj">
+<link rel="stylesheet" href="brand.css?v=mv8px3rj">
+<style>@keyframes spin{to{transform:rotate(360deg)}} body{font-family:'Inter','Noto Sans Ethiopic',sans-serif}
+.k-links{display:flex;gap:6px;flex-wrap:wrap}
+.k-links a{font-size:12px}</style>
+</head>
+<body class="c-body">
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="data.js?v=mv8px3rj"></script>
+<script src="ab-bus.js?v=mv8px3rj"></script>
+<script src="ab-geo.js?v=mv8px3rj"></script>
+<script src="ab-api.js?v=mv8px3rj"></script>
+<script src="ab-seed.js?v=mv8px3rj"></script>
+<script src="ab-bridge.js?v=mv8px3rj"></script>
+<script src="ab-catalog.js?v=mv8px3rj"></script>
+<script src="ab-auth.js?v=mv8px3rj"></script>
+<script src="customer-data.js?v=mv8px3rj"></script>
+<script type="text/babel" src="tweaks_panel.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="lib.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="shell.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="c-lib.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="k-store.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="k-browse.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="k-itemdecision.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="k-trackmap.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="k-order.jsx?v=mv8px3rj"></script>
+<script type="text/babel" src="k-account.jsx?v=mv8px3rj"></script>
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "dark": false,
+  "connection": "live",
+  "pageState": "normal",
+  "startAt": "app",
+  "layout": "phone",
+  "seedActive": true,
+  "testOrders": false,
+  "simSpeed": 1,
+  "hour": 18,
+  "minute": 42,
+  "panel": true
+}/*EDITMODE-END*/;
+window.ABBus.init('customer');
+
+function Screen(){
+  const app = useApp(); const {s} = app; const top = s.stack[s.stack.length-1];
+  if (app.tw.pageState==='error') return <div className="c-main"><CState icon="wifiOff" tone="red" title="Couldn’t load restaurants" body="Check your connection. Saved menus are still available." action={<CBtn kind="primary" icon="refresh" onClick={()=>{ app.setTweak('pageState','loading'); setTimeout(()=>app.setTweak('pageState','normal'),1200); }}>Retry</CBtn>}/></div>;
+  if (top){ const p = top.params; switch(top.name){
+    case 'rest': return <RestaurantK id={p.id}/>; case 'checkout': return <CheckoutK/>; case 'pay': return <PayStepsK code={p.code}/>; case 'track': return <TrackK code={p.code}/>;
+    case 'orderDetail': return <OrderDetailK code={p.code}/>; case 'rate': return <RateK code={p.code}/>; case 'helpOrder': return <HelpOrderK code={p.code}/>; case 'chat': return <ChatK {...p}/>;
+    case 'support': return <SupportK/>; case 'notifs': return <NotifsK/>; case 'addresses': return <AddressesK/>; case 'addAddress': return <AddAddressK/>; } }
+  return ({home:<HomeK/>, search:<SearchK/>, orders:<OrdersK/>, cart:<CartK/>, account:<AccountK/>})[s.tab];
+}
+
+function TopBarK(){
+  const app = useApp(); const a = app.addr; const [pick, setPick] = useState(false);
+  return <><div className="k-top"><button className="k-loc" onClick={()=>setPick(true)} aria-label="Change delivery address"><span className="s">Deliver to</span><span className="v"><Ic n="pin" s={15}/>{a.label} · {a.landmark.replace(/^Near /,'near ')}, {a.sub_city}<Ic n="chevD" s={16}/></span></button>
+    <button className="k-langbtn" onClick={()=>app.setLang(app.lang==='am'?'en':'am')} aria-label="Language">{app.lang==='am'?'EN':'አማ'}</button>
+    <button className="c-iconbtn" aria-label="Notifications" onClick={()=>app.push('notifs')}><Ic n="bell" s={22}/>{app.unread>0 && <span className="bdg">{app.unread}</span>}</button></div>
+    {pick && <Sheet title="Deliver to" onClose={()=>setPick(false)}><div className="c-list">{app.s.addresses.map(x=><button key={x.id} className={cx('c-choice', x.id===app.s.addrId&&'on')} onClick={()=>{ app.up(n=>{ n.addrId = x.id; }); setPick(false); }}><Ic n={x.label==='Home'?'home':'store'} s={20}/><div className="c-col"><span>{x.label} · {x.landmark}</span><span className="muted" style={{fontSize:13,fontWeight:500}}>{x.neighborhood}, {x.sub_city}</span></div><span className="rad"/></button>)}
+      <CBtn full icon="plus" onClick={()=>{ setPick(false); app.push('addAddress'); }}>Add new address</CBtn></div></Sheet>}</>;
+}
+function TabBarK(){
+  const app = useApp(); const {s} = app; const [bump, setBump] = useState(false); useEffect(()=>{ if (s.flyer){ setBump(true); const t = setTimeout(()=>setBump(false),500); return ()=>clearTimeout(t); } },[s.flyer]);
+  const tabs = [['home','Home','home'],['search','Search','search'],['orders','Orders','receipt', app.active.length],['cart','Cart','bag', app.cartCount],['account','Account','user']];
+  return <nav className="c-tabs" aria-label="Main">{tabs.map(([k,l,ic,b])=><button key={k} className={cx(s.tab===k&&!s.stack.length&&'on', k==='cart'&&bump&&'bump')} onClick={()=>app.setTab(k)}>
+    <Ic n={ic} s={24} w={s.tab===k?2.2:1.8}/>{k==='cart' && app.cartCount ? <span className="mono" style={{fontSize:10.5}}>{fmtN(app.cartTotal)}</span> : l}{b ? <span className={cx('bdg', k==='orders'?'blue':'')} style={k==='cart'?{background:'var(--brand)'}:null}>{b}</span> : null}</button>)}</nav>;
+}
+function ActivePill(){
+  const app = useApp(); const {s} = app; const o = app.active[0]; if (!o) return null; const top = s.stack[s.stack.length-1];
+  if (top && ['track','pay','checkout','chat','rate'].includes(top.name)) return null; if (s.tab==='cart' && !s.stack.length && app.cartCount) return null;
+  const st = app.STAGES[app.SIDX[o.status]] || {en:o.status}; const etaLeft = Math.max(1, (o.eta||25) - Math.round((app.now - (o.seeded ? (o.stamps.on_way||o.placedAt) : o.placedAt))/60000));
+  const label = o.status==='payment' ? (o.payState==='submitted'?'Checking payment':o.payState==='rejected'?'Payment needs fixing':'Send payment reference') : o.status==='on_way' ? `On the way · ${etaLeft} min` : o.status==='arrived' ? 'Courier is outside' : st.en;
+  return <button className="k-activepill" style={{bottom: s.stack.length ? 12 : 76}} onClick={()=>app.push(o.status==='payment'&&o.payState!=='submitted'?'pay':'track',{code:o.code})}><span className="dt" style={o.payState==='rejected'||o.status==='arrived'?{background:'#FF8A7E'}:null}/><span className="c-code" style={{fontSize:15}}>{o.code}</span><span style={{flex:1,textAlign:'left',fontWeight:650,fontSize:14.5}} className="ellip">{label}</span><Ic n="chevR" s={18}/></button>;
+}
+function ToastsK(){ const app = useApp(); return <div className="c-toastbox" style={{bottom:140}} aria-live="polite">{app.s.toasts.map(t=><div key={t.id} className="c-toast" style={t.tone==='bad'?{background:'#5A1D18'}:null}><Ic n={t.tone==='bad'?'alert':'check'} s={18} w={2.4} style={{color:t.tone==='bad'?'#FF8A7E':'#5FD39B'}}/><span style={{flex:1}}>{t.text}</span>{t.undo && <button className="c-btn sm" style={{minHeight:32,background:'transparent',color:'#fff',borderColor:'rgba(255,255,255,.3)'}} onClick={()=>{ t.undo(); app.up(n=>{ n.toasts = n.toasts.filter(x=>x.id!==t.id); }); }}>Undo</button>}</div>)}</div>; }
+function ConfirmK(){ const app = useApp(); const c = app.s.confirm; const [v, setV] = useState(''); useEffect(()=>setV(''),[c]); if (!c) return null; const close = ()=>app.up(n=>{ n.confirm=null; }); const ok = !c.typeToConfirm || v.trim().toUpperCase()===c.typeToConfirm;
+  return <Sheet title={c.title} onClose={close} footer={<div className="c-row"><CBtn onClick={close}>Keep</CBtn><div style={{flex:1}}><BigBtn tone={c.danger?'red':null} disabled={!ok && `Type ${c.typeToConfirm}`} onClick={()=>{ close(); c.onConfirm(); }}>{c.confirm}</BigBtn></div></div>}>
+    {c.body && <p style={{marginTop:0,fontSize:15}}>{c.body}</p>}{c.lines && <div className="c-card">{c.lines.map(([k,x],i)=><div key={i} className="c-kv"><span className="k">{k}</span><b className="mono">{x}</b></div>)}</div>}
+    {c.typeToConfirm && <input className="c-input" style={{marginTop:12}} placeholder={`Type ${c.typeToConfirm}`} value={v} onChange={e=>setV(e.target.value)}/>}</Sheet>; }
+function DemoCoachK(){ const app = useApp(); if (app.s.demo==null) return null; const st = app.demoSteps[Math.min(app.demoIdx, app.demoSteps.length-1)];
+  return <div className="c-coach" style={{top:62}}><Ic n="play" s={14}/><span style={{flex:1}}>{Math.min(app.demoIdx+1, app.demoSteps.length)}/{app.demoSteps.length} · {st.text}</span>{st.act && <button onClick={st.act}>Do it</button>}<button onClick={()=>app.up(n=>{ n.demo=null; })} aria-label="End demo">✕</button></div>; }
+
+function PhoneK(){
+  const app = useApp(); const {s, tw} = app; const c = fmtClock(app.now); const inApp = s.auth==='app'; const sh = s.sheet;
+  const showTop = inApp && !s.stack.length && ['home','search'].includes(s.tab);
+  return <div className={cx('c-phone', tw.layout==='wide'&&'wide')}><div className="c-screen">
+    <div className="c-osbar"><span className="mono">{c.time}</span><span className="cam"/><span className="c-row" style={{gap:6}}><span className="mono" style={{fontSize:11}}>{tw.connection==='offline'?'No signal':'4G'}</span><Ic n="battery" s={16}/></span></div>
+    <div className="c-app k-app">
+      {inApp && tw.connection==='offline' && <div className="banner amber" style={{padding:'8px 14px',fontSize:13.5}}><Ic n="wifiOff" s={15}/>You’re offline — showing saved menus. Ordering is paused.</div>}
+      {inApp && tw.connection==='reconnecting' && <div className="banner amber" style={{padding:'8px 14px',fontSize:13.5}}><Ic n="refresh" s={15} className="c-sync"/>Reconnecting…</div>}
+      {showTop && <TopBarK/>}
+      {inApp ? <Screen/> : <AuthK/>}
+      {inApp && !s.stack.length && <TabBarK/>}
+      {inApp && <ActivePill/>}
+      {inApp && <DemoCoachK/>}
+      {s.flyer && Date.now()-s.flyer<700 && <span key={s.flyer} className="k-fly"><Ic n="plus" s={14} w={3}/></span>}
+      <ToastsK/>
+      {sh && sh.type==='item' && <ItemSheet rid={sh.rid} iid={sh.iid} preset={sh.preset}/>}
+      {sh && sh.type==='help' && <HelpSheetK code={sh.code}/>}
+      <ConfirmK/>
+    </div></div></div>;
+}
+
+// Desktop web: filter rail · content · cart column
+function WebK(){
+  const app = useApp(); const {s} = app; const [chip, setChip] = useState(null); const [sub, setSub] = useState(null);
+  const top = s.stack[s.stack.length-1];
+  let list = s.data.restaurants.filter(r=>!sub || r.sub_city===sub); if (chip==='fasting') list = list.filter(r=>r.fasting_friendly); else if (chip==='open') list = list.filter(r=>app.openState(r).open); else if (chip) list = list.filter(r=>r.cuisines.includes(chip));
+  return <div className="k-web">
+    <aside className="rail"><div className="row" style={{gap:10,marginBottom:20}}><div className="logo">AB</div><b style={{fontSize:16}}>Addis Bites</b></div>
+      <div className="sec-t">Quick filters</div><div className="col gap4" style={{marginBottom:16}}>{[['open','Open now'],['fasting','ጾም Fasting'],['traditional','Traditional'],['coffee','Coffee'],['juice','Juice'],['fast_food','Fast food'],['pizza','Pizza'],['bakery','Bakery']].map(([k,l])=><button key={k} className={cx('btn', chip===k?'primary':'ghost')} style={{justifyContent:'flex-start'}} onClick={()=>setChip(chip===k?null:k)}>{l}</button>)}</div>
+      <div className="sec-t">Sub-city</div><div className="col gap4"><button className={cx('btn', !sub?'primary':'ghost')} style={{justifyContent:'flex-start'}} onClick={()=>setSub(null)}>All Addis</button>{KC().SUBS.map(x=><button key={x} className={cx('btn', sub===x?'primary':'ghost')} style={{justifyContent:'flex-start'}} onClick={()=>setSub(x)}>{x}</button>)}</div></aside>
+    <main className="mainc">{top && top.name==='rest' ? <div style={{maxWidth:760,margin:'0 auto',height:'100vh',display:'flex',flexDirection:'column',position:'relative'}} className="c-app k-app"><RestaurantK id={top.params.id}/></div> : <>
+      <div className="top"><div className="k-search" style={{maxWidth:520}}><Ic n="search" s={18}/>Search restaurants or dishes</div><span style={{flex:1}}/><span className="muted"><Ic n="pin" s={14} style={{verticalAlign:-2}}/> {app.addr.label} · {app.addr.landmark}</span></div>
+      <div style={{padding:24}}><h1 className="c-h1" style={{fontSize:28,marginBottom:4}}>Restaurants {sub?`in ${sub}`:'in Addis'}</h1><div className="muted" style={{marginBottom:16}}>{list.length} restaurants</div><div className="grid">{list.map(r=><RestCard key={r.id} r={r} full/>)}</div></div></>}</main>
+    <aside className="cartc c-app k-app" style={{display:'flex',flexDirection:'column'}}><CartK/></aside>
+    {s.sheet && s.sheet.type==='item' && <div style={{position:'fixed',inset:0,zIndex:90,display:'grid',placeItems:'center'}}><div style={{width:440,height:'86vh',position:'relative',borderRadius:20,overflow:'hidden'}} className="c-app k-app"><ItemSheet rid={s.sheet.rid} iid={s.sheet.iid}/></div></div>}
+    <ConfirmK/><ToastsK/>
+  </div>;
+}
+
+function LinkPanel(){
+  const app = useApp(); const p = app.peers; const log = (()=>{ try { return JSON.parse(localStorage.getItem('ab_bus_log')||'[]').slice(0,14); } catch(e){ return []; } })();
+  const o = app.active[0];
+  return <aside className="c-mirror" aria-label="Connected apps">
+    <div className="mh"><b>Addis Bites · connected apps</b><div className="muted" style={{fontSize:12,marginTop:4}}>Open the other two apps in new tabs — they talk live over a shared channel. When an app isn’t open, this prototype simulates its part.</div>
+      <div className="col gap4" style={{marginTop:10}}>{[['console','Operations Console','Addis Bites Console.html'],['courier','Courier app','Addis Bites Courier.html']].map(([k,l,h])=><div key={k} className="row" style={{gap:8}}><span className={cx('pill', p.includes(k)?'t-green':'t-slate')}>{p.includes(k)?'Connected':'Simulated'}</span><b className="grow">{l}</b><a className="btn sm" href={h} target="_blank"><Icon n="external" s={13}/>Open</a></div>)}</div></div>
+    <div className="feed"><div className="sec-t" style={{margin:'6px 0'}}>Live events</div>{log.length===0 && <div className="faint">No events yet — place an order.</div>}{log.map((e,i)=><div key={i} className="ev"><div className="row" style={{gap:6}}><span className="pill t-slate" style={{height:18,fontSize:10.5}}>{e.app}</span><span className="mono" style={{fontSize:11.5,fontWeight:600}}>{e.type}</span><span className="grow"/><span className="mono faint" style={{fontSize:10.5}}>{e.code||''}</span></div></div>)}</div>
+    {o && <div className="sim"><div className="sec-t" style={{margin:0}}>Drive {o.code} manually</div><div className="g">
+      <Btn size="sm" onClick={()=>window.ABBus.emit('order.approved',{code:o.code})}>Console: approve</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('payment.verified',{code:o.code, amount:o.total})}>Console: verify payment</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('payment.rejected',{code:o.code, reason:'Amount on the screenshot doesn’t match the order total'})}>Console: reject payment</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('order.no_courier',{code:o.code})}>Console: no courier</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('dispatch.accepted',{code:o.code, courier:window.ABBus.COURIER_DAWIT})}>Courier: accept</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('courier.picked_up',{code:o.code})}>Courier: picked up</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('courier.arrived_customer',{code:o.code})}>Courier: arrived</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('courier.waiting',{code:o.code})}>Courier: can’t reach you</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('message.sent',{code:o.code, from:'courier', to:'customer', text:'I’m at the blue gate', by:'Dawit (Courier)'})}>Courier: message</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('delivery.completed',{code:o.code, proof_type:'code', cash_collected:o.pay==='cod'?o.total:0})}>Courier: delivered</Btn>
+      <Btn size="sm" onClick={()=>window.ABBus.emit('order.cancelled',{code:o.code, by:'dispatcher', reason:'Restaurant couldn’t accept your order'})}>Console: cancel</Btn>
+    </div></div>}
+  </aside>;
+}
+
+function App(){
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const app = useCustomerStore(t, setTweak);
+  // Demo clock — move it to see service hours (11:00–21:00 EAT) and the closed state.
+  useEffect(()=>{ window.ABBus.setClock(t.hour, t.minute, null); app.up(n=>({...n})); },[t.hour, t.minute]);
+  useEffect(()=>{ document.documentElement.setAttribute('data-theme', t.dark?'dark':'light'); },[t.dark]);
+  const [scale, setScale] = useState(1);
+  useEffect(()=>{ const f = ()=>setScale(Math.min(1, (window.innerHeight-40)/844)); f(); window.addEventListener('resize', f); return ()=>window.removeEventListener('resize', f); },[]);
+  useEffect(()=>{ app.up(n=>{ n.auth = t.startAt==='welcome' ? 'splash' : 'app'; }); },[t.startAt]);
+  return <Ctx.Provider value={app}>
+    {t.layout==='desktop' ? <WebK/> : <div className="c-stage"><div className="c-phone-wrap" style={t.layout==='phone'?{transform:`scale(${scale})`, height:844*scale}:{}}><PhoneK/></div>{t.panel && <LinkPanel/>}</div>}
+    <TipLayer/>
+    <TweaksPanel>
+      <TweakSection label="View"><TweakRadio label="Layout" value={t.layout} options={['phone','wide','desktop']} onChange={v=>setTweak('layout',v)}/><TweakToggle label="Dark mode" value={t.dark} onChange={v=>setTweak('dark',v)}/><TweakToggle label="Connected-apps panel" value={t.panel} onChange={v=>setTweak('panel',v)}/></TweakSection>
+      <TweakSection label="Service hours">
+        <TweakSlider label="EAT hour" value={t.hour} min={0} max={23} onChange={v=>setTweak('hour',v)}/>
+        <div className="faint" style={{fontSize:11.5,lineHeight:1.35}}>
+          {t.hour>=11 && t.hour<21 ? 'Open — every venue is serving' : 'Closed — restaurants show “Closed now · opens 11:00” and ordering is blocked'}
+        </div>
+      </TweakSection>
+      <TweakSection label="States"><TweakRadio label="Connection" value={t.connection} options={['live','reconnecting','offline']} onChange={v=>setTweak('connection',v)}/><TweakSelect label="Page state" value={t.pageState} options={['normal','loading','empty','error']} onChange={v=>setTweak('pageState',v)}/><TweakRadio label="Start at" value={t.startAt} options={['app','welcome']} onChange={v=>setTweak('startAt',v)}/></TweakSection>
+      <TweakSection label="Demo"><TweakToggle label="Mark new orders as TEST" value={t.testOrders} onChange={v=>setTweak('testOrders',v)}/><TweakButton label="Demo 1 · COD order" onClick={()=>app.startDemo(1)}/><TweakButton label="Demo 2 · Telebirr transfer" onClick={()=>app.startDemo(2)}/><TweakButton label="Reset" secondary onClick={()=>{ localStorage.removeItem('ab_customer_v1'); location.reload(); }}/></TweakSection>
+    </TweaksPanel>
+  </Ctx.Provider>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

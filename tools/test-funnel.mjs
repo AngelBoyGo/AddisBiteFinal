@@ -99,7 +99,17 @@ console.log('\n\u001b[1mFunnel: does the sign-up / sign-in flow actually behave?
 {
   const { w } = open('index.html');
   check(w.ABApi && w.ABApi.dryRun === true, 'preview runs in dry-run mode (nothing will be sent)');
-  check(w.ABApi && /orderaddisbites/.test(w.ABApi.base), `API base configured: ${w.ABApi && w.ABApi.base}`);
+  /* The two orderaddisbites API hostnames are NOT the same service (verified
+     live): api.orderaddisbites.com is the 227-path "Command API" with no
+     sign-up routes; api-orderaddisbites.onrender.com is the 528-path main app
+     that owns /api/auth/register, /api/auth/send-otp, /api/waitlist, etc.
+     Forms must therefore point at the host that actually has the routes. */
+  const apiBase = (w.ABApi && w.ABApi.base) || '';
+  check(/orderaddisbites/.test(apiBase), `API base configured: ${apiBase}`);
+  check(
+    !/^https:\/\/api\.orderaddisbites\.com\/?$/.test(apiBase),
+    `API base is the host that owns the sign-up routes (not the Command API): ${apiBase}`
+  );
 }
 
 /* -------------------------------------------- 1. customer sign-up + consent */
