@@ -130,7 +130,7 @@ export default function App() {
           <Banners />
           <AlertStrip />
           <div className="content" key={P + (app.route.id || '')}>
-            {denied ? <DeniedPage page={P} /> : page}
+            {t.pageState === 'denied' ? <DeniedPage page={P} /> : page}
           </div>
         </main>
         <BottomTabs />
@@ -148,11 +148,21 @@ export default function App() {
   );
 }
 
-function DeniedPage() {
+// Shown when the demo "page state" tweak is set to `denied` — i.e. the signed-in
+// operator's role may not open this page. Mirrors the design's requirement that a
+// refusal always names the reason and offers ONE way out.
+const PAGE_LABELS = {
+  board: 'Dispatch Board', action: 'Action Queue', payments: 'Payments',
+  messages: 'Messages', couriers: 'Couriers', restaurants: 'Restaurants',
+  money: 'Money', reports: 'Reports', audit: 'Audit', settings: 'Settings',
+};
+
+function DeniedPage({ page }) {
   const app = useApp();
+  const label = PAGE_LABELS[page] || 'this page';
   return (
     <div className="page">
-      <div className="ph"><div><h1>Settings</h1></div></div>
+      <div className="ph"><div><h1>{label}</h1></div></div>
       <div className="card">
         <div className="state">
           <div className="ic" style={{ background: 'var(--amber-bg)', color: 'var(--amber-fg)' }}>
@@ -160,7 +170,7 @@ function DeniedPage() {
           </div>
           <h3>You don't have access</h3>
           <p className="pretty">
-            Your role ({app.role}) can't view Settings. Ask an Admin (Ruth Alemayehu) to grant access.
+            Your role ({app.role}) can't view {label}. Ask an Admin (Ruth Alemayehu) to grant access.
           </p>
           <div style={{ marginTop: 8 }}>
             <button className="btn" onClick={() => app.go('board')}>Back to Dispatch Board</button>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Addis Bites · Admin</title>
+  <meta name="description" content="Addis Bites admin and oversight console — approvals, money, people, analytics, security." />
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%238E1B1B'/%3E%3Ctext x='16' y='22' font-family='Inter,sans-serif' font-size='14' font-weight='700' fill='%23F2A93B' text-anchor='middle'%3EAB%3C/text%3E%3C/svg%3E" />
+  <style>
+    /* Admin-only: a cooler canopy so the fourth surface is distinguishable at a
+       glance, while every token, type ramp and component stays identical to the
+       other three apps. */
+    .side .logo.admin{background:linear-gradient(135deg,#3B3A6B,#5B5FC7 70%,var(--gold))}
+    .top .ctx{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:999px;font-size:12.5px;color:var(--text-2);background:var(--surface)}
+    .top .ctx.mono{font-family:var(--mono);font-size:12px}
+    .content{overflow-y:auto}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!--
+    Data layer. These are plain classic scripts, loaded in dependency order and
+    BEFORE the app module (module scripts are deferred, so they run last):
+      data.js   -> window.AB       mock catalogue (sub-cities, restaurants)
+      ab-bus.js -> window.ABBus    cross-tab event bus; init('admin') below
+      ab-geo.js -> window.ABGeo    geo helpers
+      ab-api.js -> window.ABApi    the ONE shared store + state machine
+      ab-seed.js-> window.ABSeed   seeds the store on first run
+    ABApi.boot() then populates the store, which every admin screen reads
+    through `app.live(...)` / `app.balance(...)`. No network calls anywhere.
+  -->
+  <script src="/admin/vendor/data.js"></script>
+  <script src="/admin/vendor/ab-bus.js"></script>
+  <script>window.ABBus && window.ABBus.init('admin');</script>
+  <script src="/admin/vendor/ab-geo.js"></script>
+  <script src="/admin/vendor/ab-api.js"></script>
+  <script src="/admin/vendor/ab-seed.js"></script>
+  <script>window.ABApi && window.ABApi.boot();</script>
+
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
