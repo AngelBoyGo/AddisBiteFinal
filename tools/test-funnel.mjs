@@ -80,6 +80,42 @@ function open(pageName) {
   return { w, navAttempts, pageErrors, logs, dom };
 }
 
+/* Same as open(), but with dryRun forced OFF so that `call()` reaches fetch
+   instead of short-circuiting. Needed to observe the outgoing request itself. */
+function openLive(pageName) {
+  const html = fs.readFileSync(path.join(ROOT, 'preview', pageName), 'utf8');
+  const vc = new VirtualConsole();
+  const dom = new JSDOM(html, {
+    url: 'https://preview.test/' + pageName,
+    runScripts: 'outside-only',
+    pretendToBeVisual: true,
+    virtualConsole: vc,
+  });
+  const w = dom.window;
+  w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  if (!w.requestAnimationFrame) w.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
+  if (!w.cancelAnimationFrame) w.cancelAnimationFrame = () => {};
+
+  for (const js of ['links.config.js', 'ab-api.js', 'app.js', 'ab-forms.js']) {
+    const p = path.join(ROOT, 'preview/assets/js', js);
+    if (!fs.existsSync(p)) continue;
+    let src = fs.readFileSync(p, 'utf8');
+    if (js === 'links.config.js') src = src.replace(/dryRun:\s*true/, 'dryRun: false');
+    w.eval(src);
+  }
+  w.document.dispatchEvent(new w.Event('DOMContentLoaded', { bubbles: true }));
+  return { w, dom };
+}
+
+/* Minimal stand-in for a fetch Response: ab-api.js only reads ok/status/text(). */
+function stubResponse(status, body) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: () => Promise.resolve(body),
+  };
+}
+
 const setValues = (form, vals) => {
   for (const [name, val] of Object.entries(vals)) {
     const el = form.querySelector(`[name="${name}"]`);
@@ -99,17 +135,83 @@ console.log('\n\u001b[1mFunnel: does the sign-up / sign-in flow actually behave?
 {
   const { w } = open('index.html');
   check(w.ABApi && w.ABApi.dryRun === true, 'preview runs in dry-run mode (nothing will be sent)');
-  /* The two orderaddisbites API hostnames are NOT the same service (verified
-     live): api.orderaddisbites.com is the 227-path "Command API" with no
-     sign-up routes; api-orderaddisbites.onrender.com is the 528-path main app
-     that owns /api/auth/register, /api/auth/send-otp, /api/waitlist, etc.
-     Forms must therefore point at the host that actually has the routes. */
+  /* Calls go to THIS SITE's own origin under /api/*, and the Worker in
+     src/index.js forwards them to the API. `base` is therefore EMPTY on
+     purpose: the browser never talks to the API host directly, so the API's
+     CORS allowlist (which names only orderaddisbites.com / www. / admin.) can
+     never block us — no preflight, nothing to allowlist. */
   const apiBase = (w.ABApi && w.ABApi.base) || '';
-  check(/orderaddisbites/.test(apiBase), `API base configured: ${apiBase}`);
-  check(
-    !/^https:\/\/api\.orderaddisbites\.com\/?$/.test(apiBase),
-    `API base is the host that owns the sign-up routes (not the Command API): ${apiBase}`
-  );
+  check(apiBase === '',
+    `API calls are same-origin via the /api/* proxy (base=${JSON.stringify(apiBase)})`);
+  check(w.AB_LINKS && w.AB_LINKS.api &&
+        w.AB_LINKS.api.fallbackBase === 'https://api-orderaddisbites.onrender.com',
+    `config documents the host the proxy targets (${w.AB_LINKS && w.AB_LINKS.api && w.AB_LINKS.api.fallbackBase})`);
+  /* The AUTHORITATIVE value is the Worker's API_ORIGIN — assert the config and
+     the Worker agree, so the two can never drift apart silently. */
+  const workerSrc = fs.readFileSync(path.join(ROOT, 'src/index.js'), 'utf8');
+  const originMatch = workerSrc.match(/const API_ORIGIN\s*=\s*'([^']+)'/);
+  check(!!originMatch && originMatch[1] === 'https://api-orderaddisbites.onrender.com',
+    `Worker proxy targets the sign-up host (API_ORIGIN=${originMatch && originMatch[1]})`);
+  check(!/^https:\/\/api\.orderaddisbites\.com\/?$/.test(apiBase),
+    'we are not pointed at the 227-path Command API (it has no sign-up routes)');
+}
+
+/* ------------------------------------------- 0b. auth is Bearer, not a cookie */
+{
+  /* dryRun must be OFF here: `call()` short-circuits when it is on, so fetch
+     would never fire and there would be no request to inspect. */
+  const { w } = openLive('index.html');
+
+  check(typeof w.ABApi.getToken === 'function' && typeof w.ABApi.setToken === 'function',
+    'Bearer session helpers are exposed (getToken / setToken / isSignedIn)');
+  check(w.ABApi.isSignedIn() === false, 'no session at rest in a fresh browser');
+
+  /* The storage key must be origin-scoped, mirroring the production app, so a
+     token minted on one host cannot be replayed on another. */
+  const key = 'addisbites_user_token:' + encodeURIComponent(w.location.origin);
+  w.ABApi.setToken('tok_abc123');
+  check(w.localStorage.getItem(key) === 'tok_abc123',
+    `token is stored under the origin-scoped key ${key}`);
+  check(w.ABApi.isSignedIn() === true, 'isSignedIn() reflects a stored token');
+  check(w.ABApi.getToken() === 'tok_abc123', 'getToken() round-trips');
+
+  w.ABApi.setToken('');
+  check(w.ABApi.isSignedIn() === false, 'clearing the token signs the session out');
+
+  /* The outgoing request must carry `Authorization: Bearer <token>` — and must
+     NOT be sent on login/register, where a stale token is misleading. */
+  const seen = [];
+  w.fetch = function (url, init) {
+    seen.push({ url: String(url), headers: new w.Headers((init && init.headers) || {}) });
+    return Promise.resolve(stubResponse(200, '{"ok":true}'));
+  };
+
+  w.ABApi.setToken('tok_bearer_test');
+  await w.ABApi.call('/api/auth/me', null, { method: 'GET' });
+  const authed = seen[seen.length - 1];
+  check(!!authed, 'the call reached fetch (dry-run is off in this harness)');
+  check(authed.headers.get('Authorization') === 'Bearer tok_bearer_test',
+    `signed-in calls send Authorization: Bearer <token> (got ${authed.headers.get('Authorization')})`);
+  check(authed.url.startsWith('/api/'),
+    `calls are same-origin (relative) so no CORS preflight occurs: ${authed.url}`);
+
+  await w.ABApi.call('/api/auth/login', { email: 'a@b.c', password: 'x' }, { auth: false });
+  const anon = seen[seen.length - 1];
+  check(anon.headers.get('Authorization') === null,
+    'opts.auth:false suppresses the header (login must not send a stale token)');
+
+  /* A 401 must clear the dead token, so the next attempt is honestly anonymous
+     rather than looping on a stale credential. */
+  w.fetch = () => Promise.resolve(stubResponse(401, '{"detail":"Invalid token"}'));
+  w.ABApi.setToken('tok_stale');
+  let threw = false;
+  try { await w.ABApi.call('/api/auth/me', null, { method: 'GET' }); }
+  catch (e) { threw = true; }
+  check(threw, 'a 401 surfaces as an error');
+  check(w.ABApi.isSignedIn() === false, 'a 401 clears the stale token (no retry loop)');
+}
+
+  w.fetch = realFetch;
 }
 
 /* -------------------------------------------- 1. customer sign-up + consent */

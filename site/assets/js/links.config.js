@@ -22,25 +22,27 @@ window.AB_LINKS = {
    * Prefer an api.* subdomain of your own domain — it keeps session cookies
    * same-site, which Safari requires.                                      */
   api: {
-    /* IMPORTANT — the two hostnames are NOT the same service (verified live
-     * 2026-10-15 against each /openapi.json):
+    /* EMPTY ON PURPOSE — every call goes to this site's OWN origin, under
+     * /api/*, and is forwarded to the API by the Worker in src/index.js.
      *
-     *   api.orderaddisbites.com            227 paths — "Addis Bites Command API"
-     *                                      NO /api/auth/register, /api/auth/send-otp,
-     *                                      /api/waitlist, /api/public/listing-intent,
-     *                                      /api/auth/driver-phone-signup  (404)
-     *   api-orderaddisbites.onrender.com   528 paths — the main app; all of the above
-     *                                      exist (422 on an empty body)
+     * Why: the API answers access-control-allow-origin only for origins on its
+     * allowlist. That list names orderaddisbites.com / www. / admin. — NOT our
+     * hosted hostname, so a direct browser call is rejected by CORS before it
+     * leaves the page (preflight → HTTP 400, no allow-origin).
      *
-     * So the api. custom domain in front of Render terminates at a DIFFERENT
-     * service than the one that owns the sign-up routes. Forms therefore point
-     * at the host that actually has them. When the api. domain is repointed at
-     * the main service in Render, swap this one line back.                   */
-    base:        'https://api-orderaddisbites.onrender.com',
-    fallbackBase:'https://api.orderaddisbites.com',
+     * CORS is a browser policy, so a server-to-server fetch is not subject to
+     * it at all. Proxying through our own Worker makes the browser same-origin:
+     * no preflight, no allowlist change needed on the API side.
+     *
+     * The API host the Worker targets is set in src/index.js (API_ORIGIN). */
+    base:        '',
+    fallbackBase:'https://api-orderaddisbites.onrender.com',
     timeoutMs:   20000,
-    /* FastAPI session cookie; cross-origin calls must opt in */
-    credentials: 'include',
+    /* Auth is Bearer <session_token>, NOT a cookie. The spec declares an
+     * authorization header on 496 operations and a Set-Cookie response header
+     * on none; the token is read from the login/register response by ab-api.js.
+     * Same-origin now, so this only matters if a call is ever made direct. */
+    credentials: 'same-origin',
     /* --- PREVIEW ONLY -- MUST STAY false IN PRODUCTION -------------------- *
      * While true, every form behaves normally but the request is SIMULATED:
      * nothing is sent, nothing is saved. It exists because the preview origin
@@ -53,7 +55,13 @@ window.AB_LINKS = {
      * are ASSUMPTIONS to confirm with the backend. If a signup returns 422
      * naming `role`, fix the value here — nothing else needs to change.   */
     roles: {
-      customer: 'customer'
+      customer: 'customer',
+      /* Couriers register through the OTP flow (telegram/start or send-otp →
+       * driver-phone-signup), never as role "courier" — probed live:
+       *   role=courier → {"detail":"Unsupported signup role"}   (422)
+       *   role=driver  → advances, returns session_id/poll_secret/telegram_url
+       * Kept here so the courier path has one obvious place to change it. */
+      courier: 'driver'
     },
     /* Expected role sent to /api/auth/login. Leave '' to omit it entirely
      * (safer: a wrong value fails the login).                             */
